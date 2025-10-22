@@ -3,6 +3,8 @@ title: Formally Verified Monads in Idris
 author: Adam Brohl
 ---
 
+![[https://www.adit.io/posts/2013-04-17-functors,_applicatives,_and_monads_in_pictures.html](https://www.adit.io/posts/2013-04-17-functors,_applicatives,_and_monads_in_pictures.html)](https://www.adit.io/imgs/functors/recap.png)
+
 One of the main appeals of programming in Haskell is the ability to express
 algorithms with Monads, which allow the programmer to abstract sequences in any
 way they like. For example, the State Monad abstracts the action of carrying an
