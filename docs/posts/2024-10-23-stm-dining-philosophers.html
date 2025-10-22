@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Using Software Transactional Memory with the Dining Philosophers Problem</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Using Software Transactional Memory with the Dining Philosophers Problem</h1>
+            <article>
+    <section class="header">
+        Posted on October 23, 2024
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>The <a href="https://en.wikipedia.org/wiki/Dining_philosophers_problem">Dining Philosophers Problem</a>
+is a toy example used to demonstrate how deadlocks can occur in concurrent
+algorithms. In this problem, there are five philosophers sitting at a circular
+table, with five bowls of food and five chopsticks — one between each bowl.</p>
+<figure>
+<img src="https://miro.medium.com/v2/resize:fit:640/format:webp/0*QMdGHWU-HvwCv0Ea.png" alt="Dining Philosophers Diagram" />
+<figcaption aria-hidden="true">Dining Philosophers Diagram</figcaption>
+</figure>
+<p>Each philosopher needs two chopsticks to eat from their bowl, and each
+philosopher needs to eat otherwise they will die of starvation. Instead of
+eating, a philosopher may also take time to think. Philosophers should eat
+concurrently, otherwise they may starve waiting for all the others to eat
+first. In the real world, the chopsticks represent a shared resource between processes
+(the philosophers).</p>
+<p>A naive approach to this problem is to have each philosopher first reach for
+the left chopstick, then the right chopstick, and then eat. The problem with
+this is that each philosopher will indefinitely wait for the philosopher to
+their right to put down their chopstick. Since there is a circular dependency,
+this will never happen and all philosophers will starve to death. There are
+many solutions to this problem, such as asymmetric chopstick selection,
+limiting how many philosophers may eat at a time, etc. In this article, we will
+explore how Software Transactional Memory can be used to solve this problem.</p>
+<h2 id="software-transactional-memory">Software Transactional Memory</h2>
+<p>Typically, programming with shared resources uses mutxes and semaphores to
+ensure exclusive access. These constructs, however, can be tedious to utilize
+correctly. For example, if one forgets to signal to a semaphore or even signals
+at the wrong time, a deadlock or some other synchronization conflict may arise.
+Software Transactional Memory (STM) acts as an abstraction layer to these
+constructs, so that the programmer can easily write concurrent algorithms
+without actually using these constructs.</p>
+<p>This is done by allowing the programmer to create <em>transactions</em> which consist of
+a series of operations that are all guaranteed to run atomically as a whole.
+For instance, one could define a transaction that reads a value from a shared
+resource, applies an operation, and writes the new value to that shared
+resource, and not worry about any potential data races because all three
+operations are guaranteed to run atomically. In Haskell, this example might
+look like:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Concurrent.STM</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">incrementValue ::</span> <span class="dt">TVar</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">STM</span> () </span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>incrementValue ref <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  value <span class="ot">&lt;-</span> readTVar ref </span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  writeTVar ref (value <span class="op">+</span> <span class="dv">1</span>)</span></code></pre></div>
+<p>In the code above, <code>TVar Int</code> represents the shared <code>Int</code> resource to be
+incremented, and <code>STM ()</code> represents that the <code>incrementValue</code> function is a
+monadic action. The STM monad is what allows the programmer to define
+transactions. It is important that this is completely separate from the IO
+monad, as arbitrary IO actions can violate the guarantees STM provides. This is
+also the reason why STM isn’t more widely used in languages like C or Java.
+These languages lack the ability to enforce this kind of separation.</p>
+<p>In the Dining Philosophers Problem, the main issue was that Philosophers were
+grabbing one chopstick at a time, preventing any one philosopher to get two
+chopsticks to eat their food. Using STM, we can define a transaction that grabs
+both chopsticks atomically:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- A Chopstick is a transactional semaphore</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Chopstick</span> <span class="ot">=</span> <span class="dt">TSem</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Philosopher</span> </span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="ot">=</span> <span class="dt">Philosopher</span> {<span class="ot"> leftStick  ::</span> <span class="dt">Chopstick</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                  ,<span class="ot"> rightStick ::</span> <span class="dt">Chopstick</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>                  }</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="ot">grabChopsticks ::</span> <span class="dt">Philosopher</span> <span class="ot">-&gt;</span> <span class="dt">STM</span> ()</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>grabChopsticks p <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  waitTSem (leftStick p)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  waitTSem (rightStick p)</span></code></pre></div>
+<p>If a philosopher uses this transaction to try to grab two chopsticks and fails,
+then the transaction will <em>retry</em> (without busy waiting) until it is able to grab
+both. After this, we can define another transaction that sets both chopsticks
+down:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">placeChopsticks ::</span> <span class="dt">Philosopher</span> <span class="ot">-&gt;</span> <span class="dt">STM</span> () </span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>placeChopsticks p <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  signalTSem (leftStick p)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  signalTSem (rightStick p)</span></code></pre></div>
+<p>And these two transactions can be used with the <code>atomically</code> function:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">runPhilosopher ::</span> <span class="dt">Philosopher</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>runPhilosopher p <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  atomically (grapChopsticks p)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- ... eat food ...</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  atomically (placeChopsticks p)</span></code></pre></div>
+<p>Even though there are no mutexes or semaphores (except for the <code>Chopstick</code> type
+synonym which is used only to make a smaller example), no deadlock can occur
+due to the mechanisms of STM.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
