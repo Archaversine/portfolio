@@ -10,7 +10,9 @@ import           System.FilePath               (takeBaseName)
 --------------------------------------------------------------------------------
 
 config :: Configuration
-config = defaultConfiguration { destinationDirectory = "docs" }
+config = defaultConfiguration
+    { destinationDirectory = "docs"
+    }
 
 main :: IO ()
 main = hakyllWith config $ do
@@ -142,7 +144,7 @@ siteCtx =
     defaultContext
 
 baseCtx =
-    constField "baseurl" "http://localhost:8000"
+    constField "baseurl" "http://archaversine.github.io"
 
 --------------------------------------------------------------------------------
 
