@@ -3,11 +3,21 @@
 import           Data.Monoid (mappend)
 import           Hakyll
 
+import Text.Pandoc.Highlighting
+import Text.Pandoc.Options
 
 --------------------------------------------------------------------------------
 
 config :: Configuration
 config = defaultConfiguration { destinationDirectory = "docs" }
+
+pandocCodeStyle :: Style
+pandocCodeStyle = kate
+
+myPandocCompiler :: Compiler (Item String)
+myPandocCompiler = pandocCompilerWith
+                     defaultHakyllReaderOptions 
+                     defaultHakyllWriterOptions { writerHighlightMethod = Skylighting pandocCodeStyle }
 
 main :: IO ()
 main = hakyllWith config $ do
@@ -27,7 +37,7 @@ main = hakyllWith config $ do
 
     match "posts/*" $ do
         route $ setExtension "html"
-        compile $ pandocCompiler
+        compile $ myPandocCompiler
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
             >>= loadAndApplyTemplate "templates/default.html" postCtx
             >>= relativizeUrls
@@ -61,6 +71,11 @@ main = hakyllWith config $ do
                 >>= relativizeUrls
 
     match "templates/*" $ compile templateBodyCompiler
+
+    create ["css/syntax.css"] $ do 
+        route idRoute 
+        compile $ do 
+            makeItem $ styleToCss pandocCodeStyle
 
 
 --------------------------------------------------------------------------------
