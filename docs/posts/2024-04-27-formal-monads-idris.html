@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Formally Verified Monads in Idris</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Formally Verified Monads in Idris</h1>
+            <article>
+    <section class="header">
+        Posted on April 27, 2024
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>One of the main appeals of programming in Haskell is the ability to express
+algorithms with Monads, which allow the programmer to abstract sequences in any
+way they like. For example, the State Monad abstracts the action of carrying an
+extra state variable through different functions to provide a more ergonomic
+interface for the programmer.</p>
+<p>In Haskell, Monads are expected to follow a few laws, so that the behavior of
+any Monad is consistent and doesn’t unintentionally produce bugs. There is one
+problem with this: Haskell doesn’t provide an easy way to ensure that a Monad
+actually follows these laws. Many are trivial an easy to implement, but some
+are so complex and easy to get wrong that
+<a href="https://wiki.haskell.org/ListT_done_right#Examples">they warrant their own page on the Haskell wiki</a>.</p>
+<p>One way to solve this problem is by using a language like Idris, which boasts
+support for dependent types and theorem proving. Idris is heavily inspired by
+Haskell with an almost identical syntax, and for the most part, Functors,
+Applicative Functors, and Monads are essentially the same in both with a couple
+tweaks.</p>
+<p>As defined in Haskell, for a type to be a Monad, it must also be a Functor and
+an Applicative Functor. So in order to have a verified Monad, one first needs a
+verified Functor. Below are the following types which will become verified
+Monads:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Box</span> a <span class="ot">=</span> <span class="dt">Value</span> a</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Option</span> a <span class="ot">=</span> <span class="dt">Some</span> a <span class="op">|</span> <span class="dt">None</span></span></code></pre></div>
+<h2 id="verifying-functors">Verifying Functors</h2>
+<p>To begin, a new interface (same as a typeclass from Haskell) will be made to
+demonstrate a verified functor. The laws a Functor must obey are:</p>
+<ol type="1">
+<li><strong>Identity</strong>: <code>fmap id == id</code> - Mapping the identity function to a functor
+is equivalent to applying the identity function to the functor.</li>
+<li><strong>Composition</strong>: <code>fmap (f . g) == fmap f . fmap g</code> - Mapping the composition
+of <code>f</code> and <code>g</code> is equivalent to mapping each one individually in the same order.</li>
+</ol>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="dt">Id</span> <span class="op">:</span> a <span class="ot">-&gt;</span> a</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Id</span> <span class="ot">=</span> <span class="fu">id</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>interface <span class="dt">Functor</span> f <span class="ot">=&gt;</span> <span class="dt">FunctorV</span> f <span class="kw">where</span> </span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  functorIdentity    <span class="op">:</span> {a <span class="op">:</span> <span class="dt">Type</span>} <span class="ot">-&gt;</span> (x <span class="op">:</span> f a) <span class="ot">-&gt;</span> <span class="fu">map</span> <span class="dt">Id</span> x <span class="ot">=</span> x</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  functorComposition <span class="op">:</span> {a, b, c <span class="op">:</span> <span class="dt">Type</span>}</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>                    <span class="ot">-&gt;</span> (x <span class="op">:</span> f a)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>                    <span class="ot">-&gt;</span> (g <span class="op">:</span> b <span class="ot">-&gt;</span> c)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>                    <span class="ot">-&gt;</span> (h <span class="op">:</span> a <span class="ot">-&gt;</span> b)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>                    <span class="ot">-&gt;</span> <span class="fu">map</span> (g <span class="op">.</span> h) x <span class="ot">=</span> <span class="fu">map</span> g (<span class="fu">map</span> h x)</span></code></pre></div>
+<p>Note the Id function at the top. This is used in place if id in
+<code>functorIdentity</code>’s type signature to avoid the compiler mistaking it for a
+type variable instead of the actual identity function.</p>
+<p>The curly bracket’s in <code>functorIdentity</code> represent an implict argument, where the
+compiler will automatically determine the correct value. Next is <code>(x : f a)</code>,
+which states that the parameter <code>x`` is of type</code>f a<code>where</code>f` is the functor that
+is being verified. The return type is a proof stating the Functor identity law.</p>
+<p>Assuming <code>Box</code> and <code>Option</code> have valid Functor implementations,
+<code>functorIdentity</code> is trivial to implement.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">FunctorV</span> <span class="dt">Box</span> <span class="kw">where</span> </span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  functorIdentity (<span class="dt">Value</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  functorComposition <span class="ot">=</span> <span class="op">?</span>todo1</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="dt">FunctorV</span> <span class="dt">Option</span> <span class="kw">where</span> </span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  functorIdentity <span class="dt">None</span> <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  functorIdentity (<span class="dt">Some</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  functorComposition <span class="ot">=</span> <span class="op">?</span>todo2</span></code></pre></div>
+<p><code>Refl</code> is the only value to the type <code>a = a</code> and is used to show trivial proofs, or
+when both sides of <code>=</code> are identical. One thing that is important to note for
+these proofs is that they all pattern match on the constructors specifically.
+This is because the implementation of <code>map</code> for both <code>Box</code> and <code>Option</code> pattern
+matches on the exact same constructors, which is what the compiler looks for.
+In this case, pattern matching on the constructors is enough for Idris to
+determine both sides of the <code>=</code> are equal, allowing the use of <code>Refl</code>, but with
+more complex Functors more work might be required to construct the proof.</p>
+<p>Next is the implementation of <code>functorComposition</code>, this law is more complex
+than the identity law, but still follows the same principles. In fact, pattern
+matching is all that’s needed in this scenario.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">FunctorV</span> <span class="dt">Box</span> <span class="kw">where</span> </span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  functorIdentity (<span class="dt">Value</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  functorComposition (<span class="dt">Value</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="dt">FunctorV</span> <span class="dt">Option</span> <span class="kw">where</span> </span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  functorIdentity <span class="dt">None</span> <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  functorIdentity (<span class="dt">Some</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  functorComposition <span class="dt">None</span> <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  functorComposition (<span class="dt">Some</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span></code></pre></div>
+<h2 id="verifying-applicative-functors">Verifying Applicative Functors</h2>
+<p>Now Box and Option are verified Functors, it’s time to look at the Applicative Functor laws:</p>
+<ol type="1">
+<li><strong>Identity</strong>: <code>pure id &lt;*&gt; v = v</code> - Using the applicative operator in
+combination with the identity function on a functor is the same as
+applying the identity function to the functor.</li>
+<li><strong>Composition</strong>: <code>pure (.) &lt;*&gt; u &lt;*&gt; v &lt;*&gt; w = u &lt;*&gt; (v &lt;*&gt; w)</code> - Applying
+the functional composition operator to three Functors is the same as
+applying the first Functor to the application of the other two.</li>
+<li><strong>Homomorphism</strong>: <code>pure f &lt;*&gt; pure x = pure (f x)</code> - Applying a function
+to a value where both have been lifted via pure is the same as applying to
+the function to the value and then lifting the result.</li>
+<li><strong>Interchange</strong>: <code>u &lt;*&gt; pure y = pure ($ y) &lt;*&gt; u</code> - The order of
+application of a functor to a lifted value can be switched as long as the
+change in order is also reflected in the lifted value.</li>
+</ol>
+<p>As done with <code>FunctorV</code>, the new <code>ApplicativeV</code> can be defined as:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>interface (<span class="dt">FunctorV</span> f, <span class="dt">Applicative</span> f) <span class="ot">=&gt;</span> <span class="dt">ApplicativeV</span> f <span class="kw">where</span> </span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    appId <span class="op">:</span> {a <span class="op">:</span> <span class="dt">Type</span>} <span class="ot">-&gt;</span> (x <span class="op">:</span> f a) <span class="ot">-&gt;</span> <span class="fu">pure</span> <span class="dt">Id</span> <span class="op">&lt;*&gt;</span> x <span class="ot">=</span> x</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    appComp <span class="op">:</span> {a, b, c <span class="op">:</span> <span class="dt">Type</span>} </span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>           <span class="ot">-&gt;</span> (u <span class="op">:</span> f (b <span class="ot">-&gt;</span> c)) </span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>           <span class="ot">-&gt;</span> (v <span class="op">:</span> f (a <span class="ot">-&gt;</span> b))</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>           <span class="ot">-&gt;</span> (w <span class="op">:</span> f a)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>           <span class="ot">-&gt;</span> <span class="fu">pure</span> (<span class="op">.</span>) <span class="op">&lt;*&gt;</span> u <span class="op">&lt;*&gt;</span> v <span class="op">&lt;*&gt;</span> w <span class="ot">=</span> u <span class="op">&lt;*&gt;</span> (v <span class="op">&lt;*&gt;</span> w)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    appHom <span class="op">:</span> {a, b <span class="op">:</span> <span class="dt">Type</span>} </span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>          <span class="ot">-&gt;</span> (g <span class="op">:</span> a <span class="ot">-&gt;</span> b) </span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>          <span class="ot">-&gt;</span> (x <span class="op">:</span> a) </span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>          <span class="ot">-&gt;</span> <span class="fu">pure</span> g <span class="op">&lt;*&gt;</span> <span class="fu">pure</span> x <span class="ot">=</span> <span class="fu">pure</span> {f} (g x)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    appInter <span class="op">:</span> {a, b <span class="op">:</span> <span class="dt">Type</span>} </span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>            <span class="ot">-&gt;</span> (u <span class="op">:</span> f (a <span class="ot">-&gt;</span> b)) </span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>            <span class="ot">-&gt;</span> (y <span class="op">:</span> a) </span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>            <span class="ot">-&gt;</span> u <span class="op">&lt;*&gt;</span> <span class="fu">pure</span> y <span class="ot">=</span> <span class="fu">pure</span> (<span class="op">$</span> y) <span class="op">&lt;*&gt;</span> u</span></code></pre></div>
+<p>Note the use of <code>{f}</code> in the appHom function. The law itself never uses an
+Applicative Functor explicitly, so the type checker can’t automatically infer
+the type <code>f</code>. Thus, <code>{f}</code> implicitly passes the Functor to the <code>pure</code> function which
+is just enough information for the type checker to be happy.</p>
+<p>Other than that, the implementations for <code>ApplicativeV</code> are also trivial,
+and only require pattern matching:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">ApplicativeV</span> <span class="dt">Box</span> <span class="kw">where</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    appId    (<span class="dt">Value</span> _)                     <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    appComp  (<span class="dt">Value</span> _) (<span class="dt">Value</span> _) (<span class="dt">Value</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    appHom   g x                           <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    appInter (<span class="dt">Value</span>) _                     <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="dt">ApplicativeV</span> <span class="dt">Option</span> <span class="kw">where</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    appId <span class="dt">None</span>     <span class="ot">=</span> <span class="dt">Refl</span> </span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    appId (<span class="dt">Some</span> _) <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    appComp  <span class="dt">None</span>     _        _       <span class="ot">=</span> <span class="dt">Refl</span> </span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    appComp (<span class="dt">Some</span> _)  <span class="dt">None</span>     _       <span class="ot">=</span> <span class="dt">Refl</span> </span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    appComp (<span class="dt">Some</span> _) (<span class="dt">Some</span> _)  <span class="dt">None</span>    <span class="ot">=</span> <span class="dt">Refl</span> </span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    appComp (<span class="dt">Some</span> _) (<span class="dt">Some</span> _) (<span class="dt">Some</span> _) <span class="ot">=</span> <span class="dt">Refl</span> </span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    appHom g x <span class="ot">=</span> <span class="dt">Refl</span> </span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    appInter <span class="dt">None</span> _     <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    appInter (<span class="dt">Some</span> _) _ <span class="ot">=</span> <span class="dt">Refl</span></span></code></pre></div>
+<h2 id="verifying-monads">Verifying Monads</h2>
+<p>Finally, all of the groundwork as been done to prove the Monad laws for
+<code>Box</code>, and <code>Option</code>. These three laws are:</p>
+<ol type="1">
+<li><strong>Left Identity</strong>: <code>pure x &gt;&gt;= k = k x</code> - Lifting a value with pure and binding it with a Monadic action is the same as applying the action to the value.</li>
+<li><strong>Right Identity</strong>: <code>n &gt;&gt;= pure = n</code> - Binding a Monadic value with pure will result in the same value.</li>
+<li><strong>Associativity</strong>: <code>n &gt;&gt;= (\x -&gt; k x &gt;&gt;= h) = (n &gt;&gt;= k) &gt;&gt;= h</code> - The bind operator (<code>&gt;&gt;=</code>) is associative.</li>
+</ol>
+<p>The definition of <code>MonadV</code> is as follows:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">Pure</span> <span class="op">:</span> <span class="dt">Applicative</span> f <span class="ot">=&gt;</span> a <span class="ot">-&gt;</span> f a</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Pure</span> <span class="ot">=</span> <span class="fu">pure</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>interface (<span class="dt">ApplicativeV</span> m, <span class="dt">Monad</span> m) <span class="ot">=&gt;</span> <span class="dt">MonadV</span> m <span class="kw">where</span> </span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    monadLeftId  <span class="op">:</span> {a <span class="op">:</span> <span class="dt">Type</span>} </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> (x <span class="op">:</span> a) </span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> (k <span class="op">:</span> a <span class="ot">-&gt;</span> m b) </span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> <span class="fu">pure</span> x <span class="op">&gt;&gt;=</span> k <span class="ot">=</span> k x</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    monadRightId <span class="op">:</span> {a <span class="op">:</span> <span class="dt">Type</span>} <span class="ot">-&gt;</span> (x <span class="op">:</span> m a) <span class="ot">-&gt;</span> x <span class="op">&gt;&gt;=</span> <span class="dt">Pure</span> <span class="ot">=</span> x</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    monadAssoc   <span class="op">:</span> {a, b, c <span class="op">:</span> <span class="dt">Type</span>} </span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> (n <span class="op">:</span> m a)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> (k <span class="op">:</span> a <span class="ot">-&gt;</span> m b) </span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> (h <span class="op">:</span> b <span class="ot">-&gt;</span> m c)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>                <span class="ot">-&gt;</span> n <span class="op">&gt;&gt;=</span> (\x <span class="ot">=&gt;</span> k x <span class="op">&gt;&gt;=</span> h) <span class="ot">=</span> (n <span class="op">&gt;&gt;=</span> k) <span class="op">&gt;&gt;=</span> h</span></code></pre></div>
+<p>And pattern matching once again provides all the necessary proofs:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="dt">MonadV</span> <span class="dt">Box</span> <span class="kw">where</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  monadLeftId x k        <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  monadRightId (<span class="dt">Box</span> _)   <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  monadAssoc (<span class="dt">Box</span> _) k h <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="dt">MonadV</span> <span class="dt">Option</span> <span class="kw">where</span> </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    monadLeftId x k         <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    monadRightId <span class="dt">None</span>       <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    monadRightId (<span class="dt">Some</span> _)   <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    monadAssoc <span class="dt">None</span> _ _     <span class="ot">=</span> <span class="dt">Refl</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    monadAssoc (<span class="dt">Some</span> _) _ _ <span class="ot">=</span> <span class="dt">Refl</span></span></code></pre></div>
+<p>Now everywhere <code>Box</code> or <code>Option</code> is used, it has been proven that they will follow
+Monad and Functor laws because it was proven with their implementation of
+<code>MonadV</code>. This also provides a great tool for programmers to ensure if their
+implementation of a particular Monad is valid or not, as in Haskell the only
+way to tell is if it type checks, which can yield many false positives.</p>
+<p>This same technique can be applied to many other concepts, such as verifying
+the associativity law of Semigroups, or even the identity law of Monoids, etc.
+It also provides a great way to incorporate mathematical ideas into one’s code
+without having to worry about the correctness of the implementation.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
