@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Binary String Evolution in Haskell</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Binary String Evolution in Haskell</h1>
+            <article>
+    <section class="header">
+        Posted on March 26, 2023
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <h2 id="problem">Problem</h2>
+<p>The goal in this article is to find the largest number that can be represented
+with 20 bits via evolutionary computation.</p>
+<p>In order to solve this problem, there first needs to be a way to represent
+each candidate. Instead of storing an array of 20 1s and 0s, the <code>Word32</code> type
+from <code>Data.Word</code> can be used to store the relevant data. All calculations with
+the <code>Word32</code> type will be made such that the other 12 bits will always be 0.
+This allows for the value of the `Word32`` to be the fitness function itself and
+allows for the use of bit-wise operations to manipulate the 1s and 0s.</p>
+<p>Before starting, here is a list of all imports and types that will be used for
+the project:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Word</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Bits</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.List</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Functor</span> ((&lt;&amp;&gt;))</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad.State</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">System.Random</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Genome</span>           <span class="ot">=</span> <span class="dt">Word32</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Population</span>       <span class="ot">=</span> [<span class="dt">Genome</span>]</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">ScoredPopulation</span> <span class="ot">=</span> [(<span class="dt">Genome</span>, <span class="dt">Float</span>)]</span></code></pre></div>
+<p>It will also be helpful to see the bits of a <code>Genome</code> as well, so here is a
+helper function to do just that:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">printBits ::</span> <span class="dt">Genome</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>printBits w <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Loop backwards to print higher bits first</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mapM_</span> (\n <span class="ot">-&gt;</span> <span class="fu">putStr</span> <span class="op">.</span> <span class="fu">show</span> <span class="op">$</span> <span class="dv">1</span> <span class="op">.&amp;.</span> (w <span class="ot">`shiftR`</span> n)) [<span class="dv">19</span>,<span class="dv">18</span><span class="op">..</span><span class="dv">0</span>] </span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot; = &quot;</span> <span class="op">++</span> <span class="fu">show</span> w</span></code></pre></div>
+<h2 id="genetic-algorithm-variables">Genetic Algorithm Variables</h2>
+<p>For the genetic algorithm, a few helper variables to make everything easier
+should be defined. Here are some that I thought were helpful in writing the code:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Number where only 20/32 bits are 1</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- Only Used to set max limit for random generation</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ot">mask ::</span> <span class="dt">Genome</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>mask <span class="ot">=</span> <span class="dv">1048575</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ot">population ::</span> <span class="dt">Int</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>population <span class="ot">=</span> <span class="dv">500</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ot">generations ::</span> <span class="dt">Int</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>generations <span class="ot">=</span> <span class="dv">500</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="ot">iterations ::</span> <span class="dt">Int</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>iterations <span class="ot">=</span> <span class="dv">30</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="ot">mutationChance ::</span> <span class="dt">Float</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>mutationChance <span class="ot">=</span> <span class="fl">0.001</span></span></code></pre></div>
+<h2 id="initial-generation">Initial Generation</h2>
+<p>Before any more functions are written, there first needs to be a way to both
+randomly generate a genome, and randomly generate a population of genomes so
+that an initial population for the genetic algorithm can be easily created.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Generate a single genome</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ot">genRandomGenome ::</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Genome</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>genRandomGenome <span class="ot">=</span> randomR (<span class="dv">0</span>, mask)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- Generate a list of genomes</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ot">genInitialPopulation ::</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Population</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>genInitialPopulation <span class="ot">=</span> replicateM population genRandomGenome</span></code></pre></div>
+<h2 id="crossover">Crossover</h2>
+<p>The Crossover function is implemented using the standard crossover technique,
+where both parents are split into two parts and merged to create a child.
+Thanks to bit-wise operations, this process is not too difficult. Below is
+the algorithm used to calculate the child’s DNA. Note that this algorithm
+assumes the largest 12 bits of both parents are 0, which allows for no need to
+modify the 12 bits after the crossover. Crossover happens always.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">cross ::</span> <span class="dt">Genome</span> <span class="ot">-&gt;</span> <span class="dt">Genome</span> <span class="ot">-&gt;</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Genome</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>cross p1 p2 <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    crossPoint <span class="ot">&lt;-</span> randomR (<span class="dv">0</span><span class="ot"> ::</span> <span class="dt">Int</span>, <span class="dv">20</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> crossMask <span class="ot">=</span> complement <span class="dv">0</span> <span class="ot">`shiftL`</span> crossPoint</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> <span class="op">$</span> (p1 <span class="op">.&amp;.</span> crossMask) <span class="op">.|.</span> (p2 <span class="op">.&amp;.</span> complement crossMask)</span></code></pre></div>
+<h2 id="mutation">Mutation</h2>
+<p>For each bit in the 20 bits of the <code>Word32</code>, there is a small chance (set to 0.1%
+later on) that it will be flipped after crossover occurs. The bit is flipped
+with bit-wise xor. Mutation always happens after crossover occurs. Here is a
+function that loops through every bit with a small probability <code>mutationChance</code>
+of mutating:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">mutate ::</span> <span class="dt">Genome</span> <span class="ot">-&gt;</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Genome</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>mutate g <span class="ot">=</span> go <span class="dv">20</span> (<span class="fu">pure</span> g)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span> go <span class="dv">0</span> acc <span class="ot">=</span> acc</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>          go n acc <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>            r <span class="ot">&lt;-</span> randomR (<span class="dv">0</span><span class="ot"> ::</span> <span class="dt">Float</span>, <span class="dv">1</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            <span class="kw">if</span> r <span class="op">&gt;</span> mutationChance <span class="kw">then</span> go (n <span class="op">-</span> <span class="dv">1</span>) acc</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>                <span class="co">-- flip current bit</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>                <span class="kw">else</span> go (n <span class="op">-</span> <span class="dv">1</span>) <span class="op">$</span> acc <span class="op">&lt;&amp;&gt;</span> (<span class="ot">`xor`</span> (<span class="dv">1</span> <span class="ot">`shiftL`</span> (n <span class="op">-</span> <span class="dv">1</span>)))</span></code></pre></div>
+<h2 id="population-selection">Population Selection</h2>
+<p>When parents are selected from the population, a roulette selection is used to
+bias the selection towards candidates with a higher fitness. The process is
+similar to a weighted random selection. See below:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">selectFromPopulation ::</span> <span class="dt">ScoredPopulation</span> <span class="ot">-&gt;</span> <span class="dt">Float</span> <span class="ot">-&gt;</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Genome</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>selectFromPopulation [] _ <span class="ot">=</span> <span class="fu">error</span> <span class="st">&quot;empty population&quot;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>selectFromPopulation scored totalFitness <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    r <span class="ot">&lt;-</span> randomRIO (<span class="dv">0</span><span class="ot"> ::</span> <span class="dt">Float</span>, <span class="dv">1</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> <span class="op">$</span> go (r <span class="op">*</span> totalFitness) scored</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">where</span> go _ [] <span class="ot">=</span> <span class="fu">undefined</span> <span class="co">-- error on emtpy list</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>              go _ [(x, _)] <span class="ot">=</span> x</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>              go dart ((x, p)<span class="op">:</span>xs)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>                <span class="op">|</span> dart <span class="op">&gt;</span> p <span class="ot">=</span> go dart xs</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>                <span class="op">|</span> <span class="fu">otherwise</span> <span class="ot">=</span> x</span></code></pre></div>
+<h2 id="creating-the-next-generation">Creating the Next Generation</h2>
+<p>To create the next generation, two parents are selected from the population,
+crossed, and then mutated which yields the child for the next generation. Since
+the crossover, mutation, and selection functions have already been defined,
+this one is much more simple:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">reproduce ::</span> <span class="dt">Population</span> <span class="ot">-&gt;</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Population</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>reproduce p <span class="ot">=</span> replicateM population <span class="op">$</span> <span class="kw">do</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    p1 <span class="ot">&lt;-</span> selectFromPopulation scored totalFitness</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    p2 <span class="ot">&lt;-</span> selectFromPopulation scored totalFitness</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    cross p1 p2 <span class="op">&gt;&gt;=</span> mutate</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">where</span> summed <span class="ot">=</span> <span class="fu">scanl1</span> (<span class="op">+</span>) <span class="op">$</span> <span class="fu">map</span> <span class="fu">fromIntegral</span><span class="ot"> p ::</span> [<span class="dt">Float</span>]</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>              scored <span class="ot">=</span> <span class="fu">zip</span> p summed</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>              totalFitness <span class="ot">=</span> <span class="fu">last</span> summed</span></code></pre></div>
+<h2 id="the-loop">The Loop</h2>
+<p>Now, there needs to be a function that puts everything together. This function
+should keep creating the next generation with crossover and mutation for a
+given number of times. After that, it should return the genome with the best
+fitness. The <code>generations</code> variable from earlier will be used to decide this
+number.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">runGA ::</span> <span class="dt">State</span> <span class="dt">StdGen</span> <span class="dt">Genome</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>runGA <span class="ot">=</span> go generations genInitialPopulation</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span> go <span class="dv">0</span> pop <span class="ot">=</span> pop <span class="op">&lt;&amp;&gt;</span> <span class="fu">head</span> <span class="co">-- Return best fit genome</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>          go n pop <span class="ot">=</span> go (n <span class="op">-</span> <span class="dv">1</span>) <span class="op">$</span> pop <span class="op">&gt;&gt;=</span> reproduce <span class="op">&lt;&amp;&gt;</span> sortBy (<span class="fu">flip</span> <span class="fu">compare</span>)</span></code></pre></div>
+<p>Note that <code>runGA</code> must sort the new population in descending order before making
+the next recursive call. This is so that when the loop is done, <code>runGA</code> can
+simply return the first element of the population, which if sorted in
+descending order will be the best fit genome.</p>
+<h2 id="main-function">Main Function</h2>
+<p>Finally, everything can be combined together into the main function. To make
+things easier, the main function prints the variables used in the genetic
+algorithm every time it is run. The main function also calls <code>runGA</code> multiple
+times and then calculates the average and standard deviation of each best
+performing genome.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="st">&quot;--------------------------------------------&quot;</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Population Size: &quot;</span> <span class="op">++</span> <span class="fu">show</span> population</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Number of Generations: &quot;</span> <span class="op">++</span> <span class="fu">show</span> generations</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Number of Iterations: &quot;</span> <span class="op">++</span> <span class="fu">show</span> iterations</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Mutation per bit: &quot;</span> <span class="op">++</span> <span class="fu">show</span> (mutationChance <span class="op">*</span> <span class="dv">100</span>) <span class="op">++</span> <span class="st">&quot;%&quot;</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="st">&quot;--------------------------------------------&quot;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    results <span class="ot">&lt;-</span> go iterations (<span class="fu">pure</span> [])</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> floats <span class="ot">=</span> <span class="fu">map</span> <span class="fu">fromIntegral</span><span class="ot"> results ::</span> [<span class="dt">Float</span>]</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        mean <span class="ot">=</span> <span class="fu">sum</span> floats <span class="op">/</span> <span class="fu">fromIntegral</span> iterations</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        totalDiffSquared <span class="ot">=</span> <span class="fu">sum</span> <span class="op">$</span> <span class="fu">map</span> (\x <span class="ot">-&gt;</span> (x <span class="op">-</span> mean) <span class="op">^</span> <span class="dv">2</span>) floats</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        deviation <span class="ot">=</span> <span class="fu">sqrt</span> <span class="op">$</span> totalDiffSquared <span class="op">/</span> <span class="fu">fromIntegral</span> iterations</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Average: &quot;</span> <span class="op">++</span> <span class="fu">show</span> mean</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Standard Deviation: &quot;</span> <span class="op">++</span> <span class="fu">show</span> deviation</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span> go <span class="dv">0</span> acc <span class="ot">=</span> acc</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>          go n acc <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>            best <span class="ot">&lt;-</span> evalState runGA <span class="op">&lt;$&gt;</span> newStdGen</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>            <span class="fu">putStr</span> (<span class="st">&quot;Iteration &quot;</span> <span class="op">++</span> <span class="fu">show</span> i <span class="op">++</span> <span class="st">&quot;: &quot;</span>) <span class="op">&gt;&gt;</span> printBits best</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>            go (n <span class="op">-</span> <span class="dv">1</span>) <span class="op">$</span> (best <span class="op">:</span>) <span class="op">&lt;$&gt;</span> acc</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>                <span class="kw">where</span> i <span class="ot">=</span> iterations <span class="op">-</span> n <span class="op">+</span> <span class="dv">1</span></span></code></pre></div>
+<h2 id="results">Results</h2>
+<p>Here is the output generated from running the program one time, in iteration
+24, it actually reaches the optimal solution of all 1s:</p>
+<pre><code>--------------------------------------------
+Population Size: 500
+Number of Generations: 500
+Number of Iterations: 30
+Mutation per bit: 0.1%
+--------------------------------------------
+Iteration 1: 11111111111111011011 = 1048539
+Iteration 2: 11111111111111111010 = 1048570
+Iteration 3: 11111111111111110001 = 1048561
+Iteration 4: 11111111111111111011 = 1048571
+Iteration 5: 11111111111111110100 = 1048564
+Iteration 6: 11111111111110101000 = 1048488
+Iteration 7: 11111111111101111000 = 1048440
+Iteration 8: 11111111111110010111 = 1048471
+Iteration 9: 11111111111111011110 = 1048542
+Iteration 10: 11111111111111111010 = 1048570
+Iteration 11: 11111111111111111101 = 1048573
+Iteration 12: 11111111111001010111 = 1048151
+Iteration 13: 11111111111110010111 = 1048471
+Iteration 14: 11111111111110101111 = 1048495
+Iteration 15: 11111111111111011011 = 1048539
+Iteration 16: 11111111100100010010 = 1046802
+Iteration 17: 11111111111110111111 = 1048511
+Iteration 18: 11111111101111010100 = 1047508
+Iteration 19: 11111111111101111110 = 1048446
+Iteration 20: 11111111111111010110 = 1048534
+Iteration 21: 11111111111111110001 = 1048561
+Iteration 22: 11111111111111110100 = 1048564
+Iteration 23: 11111111110101110011 = 1047923
+Iteration 24: 11111111111111111111 = 1048575
+Iteration 25: 11111111111001011010 = 1048154
+Iteration 26: 11111111111011110011 = 1048307
+Iteration 27: 11111111111111111110 = 1048574
+Iteration 28: 11111111111110100010 = 1048482
+Iteration 29: 11111111111011101010 = 1048298
+Iteration 30: 11111111111111111000 = 1048568
+Average: 1048378.4
+Standard Deviation: 371.59454</code></pre>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
