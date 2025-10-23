@@ -224,4 +224,78 @@ aren't directly representable at the type level. Especially Because one of the
 goals of this type system is to implement first class functions, they will need
 to be easily representable at the type level. 
 
+This type system will closely mimic the Haskell type system, and as such 
+functions will behave in a similar manner. Specifically, functions will only 
+take in one parameter and return one output value. To represent functions
+that take in multiple parameters, either a tuple can be used for the input 
+parameter, or the function can be curried (e.g. `a -> b -> c`).
+
+In Prolog, structs/tuples can be represented by using syntax similar to 
+defining rules. For example, `toFloat`, a function that takes in an integer
+and returns a float, could be encoded by:
+
+```prolog
+type(toFloat, fun(int, float))
+```
+
+In addition to function types, it would help to give the type checker an 
+understand of function application and how to determine the type of a function
+applied to an expression.
+
+```prolog 
+type(app(F, X), B) :-
+    type(F, fun(A, B)),
+    type(X, A).
+```
+
+In the above code, `app(F, X)` is used to represent "the function `F` applied 
+to the value `X`". The type fact states that the type of `F` applied to `X` is
+`B` if the type of `F` is a function from `A` to `B`, and the type of `X` is `A`.
+
+Consider the type facts:
+
+```prolog
+type(f, fun(int, float)).
+type(g, fun(float, string)).
+
+type(x, int).
+```
+
+It makes sense that applying `f` to `x` would result in a float, and that 
+applying `g` to that float would return a string. Lets see if our typechecker agrees:
+
+```prolog
+?- type(app(f, x), Ty)
+Ty = float
+
+?- type(app(g, app(f, x)), Ty)
+Ty = string
+```
+
+It correctly infers the type of each expression. It also correctly identifies
+nonsensical function applications:
+
+```prolog
+?- typecheck(app(f, f))
+false
+```
+
+And this concept can be extended to (curried) functions that act on multiple
+arguments. Here is a code snippet that shows a function `f` that takes in an 
+integer and a float and returns a string:
+
+```prolog
+type(x, int).
+type(y, float).
+type(f, fun(int, fun(float, string))).
+
+?- type(app(f, x), Ty)
+Ty = fun(float, string)
+
+?- type(app(app(f, x), y), Ty)
+Ty = string
+```
+
+### Parametric Polymorphism
+
 
