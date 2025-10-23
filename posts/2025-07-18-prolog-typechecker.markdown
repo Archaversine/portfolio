@@ -60,3 +60,168 @@ The capital letters signify variables instead of actual atomic values.
 
 ### Querying
 
+Once a set of facts and rules (a knowledgebase) has been constructed, queries
+can be made to the knowledge base to determine if certain facts are true or not.
+In the previous parent and grandparent example, we can make specific queries
+to see if certain people are parents or grandparents.
+
+```prolog 
+?- parent(alice, bob)
+true
+
+?- parent(bob, alice)
+false
+
+?- grandparent(alice, bob)
+false
+
+?- grandparent(alice, david)
+```
+
+On top of this, queries can contain variables. This is useful for searching the 
+knowledge base for facts that satisfy the query. For example, to find the 
+grandparent of david, the following query can be made:
+
+```prolog 
+?- grandparent(A, david)
+A = alice
+```
+
+If there are multiple things that satisfy a query, Prolog will list all of them
+until either no more are left or specified to stop by the user.
+
+## Designing a Type System
+
+In this post, I will walk through how Prolog can be used to implement a type 
+checking algorithm for a type system that has the following features:
+
+- Basic types (Int, String, etc.)
+- First class functions
+- First class types
+- Parametric polymorphism
+- Ad-hoc polymorphism
+- Generic Types (List, Vector, etc.)
+- Dependent Types (Pi & Sigma)
+
+## Implementing
+
+### Type Facts
+
+In order to implement a type system, we need to have some way to specify what 
+the type of an arbitrary expression is. If this was part of a compiler, these
+facts would be generated automatically depending on the semantics of the language.
+
+Similar to the parent and grandparent facts defined in the previous examples, 
+we can make a `type` rule where `type(A, Ty)` means "The type of `A` is `Ty`":
+
+```prolog 
+type(a, int).
+type(b, float).
+type(c, string).
+```
+
+The above code can be read as:
+- The type of `a` is `int`
+- The type of `b` is `float`
+- The type of `c` is `string`
+
+Some types, such as integers can be defined as literals like `123` or
+`"some text"`. Prolog comes built in with some predicates to make defining 
+type checking rules for these literals easy:
+
+```prolog
+type(X, int) :-
+    integer(X).
+
+type(X, float) :- 
+    float(X).
+
+type(X, string) :-
+    string(X).
+```
+
+Then we can make the following queries to ask Prolog what the types of our 
+literals would be:
+
+```prolog 
+?- type(3, Ty)
+Ty = int
+
+?- type(3.14, Ty)
+Ty = float
+
+?- type("Hello, World!", Ty)
+Ty = string
+
+```
+
+#### Typechecking
+
+Along with declaring type facts, we can also specify a rule that returns true
+if an expression typechecks:
+
+```prolog
+typecheck(A) :-
+    type(A, _).
+```
+
+The `typecheck` rule simply checks if `A` has some type `_`. The underscore is
+used to denote a variable whose value we don't care about. Since we are only
+checking *if* such a value exists and not what that value actually is, it can
+be ignored.
+
+Using the following knowledge base:
+
+```prolog
+type(a, int).
+```
+
+The `typecheck` rule behaves as expected:
+
+```prolog
+?- typecheck(a)
+true
+
+?- typecheck(b)
+false
+```
+
+### Type Unification
+
+Another feature of typecheckers is the ability to tell if two expressions have
+the same type. This is useful in, for example, checking if the left and right 
+side of a binary operator, like addition, are the same type. Prolog implements
+its own unification algorithm for searching a knowledgebase, so implementing
+such an algorithm is trivial:
+
+```prolog
+unified(A, B) :-
+    type(A, Ty),
+    type(B, Ty).
+```
+
+In english, the above code snippet states that `A` and `B` are unified if the
+type of `A` is `Ty`, *and* the type of `B` is *also* `Ty`.
+
+An example of unification in action:
+
+```prolog
+type(a, int).
+type(b, int).
+type(c, float).
+
+?- unified(a, b)
+true
+
+?- unified(a, c)
+false
+```
+
+### Function Types
+
+Most programming languages implement functions in some form, even if they
+aren't directly representable at the type level. Especially Because one of the
+goals of this type system is to implement first class functions, they will need
+to be easily representable at the type level. 
+
+
