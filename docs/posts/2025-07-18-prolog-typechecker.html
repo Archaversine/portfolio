@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Building a Typechecker in Prolog</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Building a Typechecker in Prolog</h1>
+            <article>
+    <section class="header">
+        Posted on July 18, 2025
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>Many programs employ a static type system. This means that instead of checking
+at runtime if an arbitrary operation is valid on some values, values are given
+a type before the program is run, and a typechecker will ensure that there does
+not exist any place in the program where a function acts on the wrong types of
+arguments.</p>
+<p>Typecheckers are written in all sorts of languages, such as C/C++, Rust,
+Python, etc. This post explores how a type checker could be represented in
+Prolog. Prolog is a logical oriented programming language where instead of
+defining a list of instructions (imperative) or a transformation from some
+input to an output (functional), a program is created by listing a set of facts
+and relations between those facts.</p>
+<h2 id="basic-prolog-syntax">Basic Prolog Syntax</h2>
+<h3 id="declaring-facts">Declaring Facts</h3>
+<p>In Prolog, facts are typically written in the form <code>factname(object)</code> and end
+with a <code>.</code> at the end. Both the fact name and the object must start with
+a lowercase letter.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>parent(alice<span class="kw">,</span> bob)<span class="kw">.</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>parent(bob<span class="kw">,</span> david)<span class="kw">.</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>parent(carol<span class="kw">,</span> david)<span class="kw">.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>child(david)<span class="kw">.</span></span></code></pre></div>
+<p>In the above program, the following facts are declared:</p>
+<ul>
+<li><code>alice</code> is the parent of <code>bob</code></li>
+<li><code>bob</code> is the parent of <code>david</code></li>
+<li><code>carol</code> is the parent of <code>david</code></li>
+<li><code>david</code> is a child</li>
+</ul>
+<p><em>NOTE: <code>parent(alice, bob)</code> doesn’t necessarily have to mean <code>alice</code> is the
+parent of <code>bob</code>, it could mean that <code>bob</code> is the parent of <code>alice</code>; it is up to
+the programmer to decide the correct meaning.</em></p>
+<h3 id="declaring-rules">Declaring Rules</h3>
+<p>Ini addition to the example above, we can also define a set of logical rules:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>grandparent(<span class="dt">A</span><span class="kw">,</span> <span class="dt">B</span>) <span class="kw">:-</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    parent(<span class="dt">A</span><span class="kw">,</span> <span class="dt">X</span>)<span class="kw">,</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    parent(<span class="dt">X</span><span class="kw">,</span> <span class="dt">B</span>)<span class="kw">.</span></span></code></pre></div>
+<p>The <code>A :- B</code> means <code>A</code> is implied by <code>B</code>, and the comma (<code>,</code>) operator
+represents or. The above code can be interpreted as: “<code>A</code> is a grandparent of
+<code>B</code> <em>if</em> <code>A</code> is a parent of some object <code>X</code>, and that <code>X</code> is a parent of <code>B</code>”.
+The capital letters signify variables instead of actual atomic values.</p>
+<h3 id="querying">Querying</h3>
+<p>Once a set of facts and rules (a knowledgebase) has been constructed, queries
+can be made to the knowledge base to determine if certain facts are true or not.
+In the previous parent and grandparent example, we can make specific queries
+to see if certain people are parents or grandparents.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> parent(alice<span class="kw">,</span> bob)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">true</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> parent(bob<span class="kw">,</span> alice)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">false</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> grandparent(alice<span class="kw">,</span> bob)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">false</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> grandparent(alice<span class="kw">,</span> david)</span></code></pre></div>
+<p>On top of this, queries can contain variables. This is useful for searching the
+knowledge base for facts that satisfy the query. For example, to find the
+grandparent of david, the following query can be made:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> grandparent(<span class="dt">A</span><span class="kw">,</span> david)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">A</span> <span class="kw">=</span> alice</span></code></pre></div>
+<p>If there are multiple things that satisfy a query, Prolog will list all of them
+until either no more are left or specified to stop by the user.</p>
+<h2 id="designing-a-type-system">Designing a Type System</h2>
+<p>In this post, I will walk through how Prolog can be used to implement a type
+checking algorithm for a type system that has the following features:</p>
+<ul>
+<li>Basic types (Int, String, etc.)</li>
+<li>First class functions</li>
+<li>First class types</li>
+<li>Parametric polymorphism</li>
+<li>Ad-hoc polymorphism</li>
+<li>Generic Types (List, Vector, etc.)</li>
+<li>Dependent Types (Pi &amp; Sigma)</li>
+</ul>
+<h2 id="implementing">Implementing</h2>
+<h3 id="type-facts">Type Facts</h3>
+<p>In order to implement a type system, we need to have some way to specify what
+the type of an arbitrary expression is. If this was part of a compiler, these
+facts would be generated automatically depending on the semantics of the language.</p>
+<p>Similar to the parent and grandparent facts defined in the previous examples,
+we can make a <code>type</code> rule where <code>type(A, Ty)</code> means “The type of <code>A</code> is <code>Ty</code>”:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>type(a<span class="kw">,</span> int)<span class="kw">.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>type(b<span class="kw">,</span> <span class="dt">float</span>)<span class="kw">.</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>type(c<span class="kw">,</span> string)<span class="kw">.</span></span></code></pre></div>
+<p>The above code can be read as:
+- The type of <code>a</code> is <code>int</code>
+- The type of <code>b</code> is <code>float</code>
+- The type of <code>c</code> is <code>string</code></p>
+<p>Some types, such as integers can be defined as literals like <code>123</code> or
+<code>"some text"</code>. Prolog comes built in with some predicates to make defining
+type checking rules for these literals easy:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>type(<span class="dt">X</span><span class="kw">,</span> int) <span class="kw">:-</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">integer</span>(<span class="dt">X</span>)<span class="kw">.</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>type(<span class="dt">X</span><span class="kw">,</span> <span class="dt">float</span>) <span class="kw">:-</span> </span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">float</span>(<span class="dt">X</span>)<span class="kw">.</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>type(<span class="dt">X</span><span class="kw">,</span> string) <span class="kw">:-</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    string(<span class="dt">X</span>)<span class="kw">.</span></span></code></pre></div>
+<p>Then we can make the following queries to ask Prolog what the types of our
+literals would be:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(<span class="dv">3</span><span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> int</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(<span class="fl">3.14</span><span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> <span class="dt">float</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(<span class="ot">&quot;</span><span class="er">Hello</span><span class="ot">,</span><span class="er"> World</span><span class="ot">!&quot;</span><span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> string</span></code></pre></div>
+<h4 id="typechecking">Typechecking</h4>
+<p>Along with declaring type facts, we can also specify a rule that returns true
+if an expression typechecks:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>typecheck(<span class="dt">A</span>) <span class="kw">:-</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    type(<span class="dt">A</span><span class="kw">,</span> <span class="dt">_</span>)<span class="kw">.</span></span></code></pre></div>
+<p>The <code>typecheck</code> rule simply checks if <code>A</code> has some type <code>_</code>. The underscore is
+used to denote a variable whose value we don’t care about. Since we are only
+checking <em>if</em> such a value exists and not what that value actually is, it can
+be ignored.</p>
+<p>Using the following knowledge base:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>type(a<span class="kw">,</span> int)<span class="kw">.</span></span></code></pre></div>
+<p>The <code>typecheck</code> rule behaves as expected:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> typecheck(a)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">true</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> typecheck(b)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">false</span></span></code></pre></div>
+<h3 id="type-unification">Type Unification</h3>
+<p>Another feature of typecheckers is the ability to tell if two expressions have
+the same type. This is useful in, for example, checking if the left and right
+side of a binary operator, like addition, are the same type. Prolog implements
+its own unification algorithm for searching a knowledgebase, so implementing
+such an algorithm is trivial:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>unified(<span class="dt">A</span><span class="kw">,</span> <span class="dt">B</span>) <span class="kw">:-</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    type(<span class="dt">A</span><span class="kw">,</span> <span class="dt">Ty</span>)<span class="kw">,</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    type(<span class="dt">B</span><span class="kw">,</span> <span class="dt">Ty</span>)<span class="kw">.</span></span></code></pre></div>
+<p>In english, the above code snippet states that <code>A</code> and <code>B</code> are unified if the
+type of <code>A</code> is <code>Ty</code>, <em>and</em> the type of <code>B</code> is <em>also</em> <code>Ty</code>.</p>
+<p>An example of unification in action:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>type(a<span class="kw">,</span> int)<span class="kw">.</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>type(b<span class="kw">,</span> int)<span class="kw">.</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>type(c<span class="kw">,</span> <span class="dt">float</span>)<span class="kw">.</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> unified(a<span class="kw">,</span> b)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="kw">true</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> unified(a<span class="kw">,</span> c)</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="kw">false</span></span></code></pre></div>
+<h3 id="function-types">Function Types</h3>
+<p>Most programming languages implement functions in some form, even if they
+aren’t directly representable at the type level. Especially Because one of the
+goals of this type system is to implement first class functions, they will need
+to be easily representable at the type level.</p>
+<p>This type system will closely mimic the Haskell type system, and as such
+functions will behave in a similar manner. Specifically, functions will only
+take in one parameter and return one output value. To represent functions
+that take in multiple parameters, either a tuple can be used for the input
+parameter, or the function can be curried (e.g. <code>a -&gt; b -&gt; c</code>).</p>
+<p>In Prolog, structs/tuples can be represented by using syntax similar to
+defining rules. For example, <code>toFloat</code>, a function that takes in an integer
+and returns a float, could be encoded by:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>type(toFloat<span class="kw">,</span> fun(int<span class="kw">,</span> <span class="dt">float</span>))</span></code></pre></div>
+<p>In addition to function types, it would help to give the type checker an
+understand of function application and how to determine the type of a function
+applied to an expression.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>type(app(<span class="dt">F</span><span class="kw">,</span> <span class="dt">X</span>)<span class="kw">,</span> <span class="dt">B</span>) <span class="kw">:-</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    type(<span class="dt">F</span><span class="kw">,</span> fun(<span class="dt">A</span><span class="kw">,</span> <span class="dt">B</span>))<span class="kw">,</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    type(<span class="dt">X</span><span class="kw">,</span> <span class="dt">A</span>)<span class="kw">.</span></span></code></pre></div>
+<p>In the above code, <code>app(F, X)</code> is used to represent “the function <code>F</code> applied
+to the value <code>X</code>”. The type fact states that the type of <code>F</code> applied to <code>X</code> is
+<code>B</code> if the type of <code>F</code> is a function from <code>A</code> to <code>B</code>, and the type of <code>X</code> is <code>A</code>.</p>
+<p>Consider the type facts:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>type(f<span class="kw">,</span> fun(int<span class="kw">,</span> <span class="dt">float</span>))<span class="kw">.</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>type(g<span class="kw">,</span> fun(<span class="dt">float</span><span class="kw">,</span> string))<span class="kw">.</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>type(x<span class="kw">,</span> int)<span class="kw">.</span></span></code></pre></div>
+<p>It makes sense that applying <code>f</code> to <code>x</code> would result in a float, and that
+applying <code>g</code> to that float would return a string. Lets see if our typechecker agrees:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(app(f<span class="kw">,</span> x)<span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> <span class="dt">float</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(app(g<span class="kw">,</span> app(f<span class="kw">,</span> x))<span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> string</span></code></pre></div>
+<p>It correctly infers the type of each expression. It also correctly identifies
+nonsensical function applications:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> typecheck(app(f<span class="kw">,</span> f))</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">false</span></span></code></pre></div>
+<p>And this concept can be extended to (curried) functions that act on multiple
+arguments. Here is a code snippet that shows a function <code>f</code> that takes in an
+integer and a float and returns a string:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode prolog"><code class="sourceCode prolog"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>type(x<span class="kw">,</span> int)<span class="kw">.</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>type(y<span class="kw">,</span> <span class="dt">float</span>)<span class="kw">.</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>type(f<span class="kw">,</span> fun(int<span class="kw">,</span> fun(<span class="dt">float</span><span class="kw">,</span> string)))<span class="kw">.</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(app(f<span class="kw">,</span> x)<span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> fun(<span class="dt">float</span><span class="kw">,</span> string)</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="fu">?-</span> type(app(app(f<span class="kw">,</span> x)<span class="kw">,</span> y)<span class="kw">,</span> <span class="dt">Ty</span>)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="dt">Ty</span> <span class="kw">=</span> string</span></code></pre></div>
+<h3 id="parametric-polymorphism">Parametric Polymorphism</h3>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
