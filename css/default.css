@@ -1,5 +1,14 @@
+@font-face {
+    font-family: 'Roboto';
+    src: url('/fonts/Roboto.ttf');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
 html {
   font-size: 72.5%;
+  font-family: 'Roboto';
 }
 
 body {
