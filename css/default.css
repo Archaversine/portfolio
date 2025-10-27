@@ -5,10 +5,16 @@ html {
 body {
   font-size: 1.6rem;
   color: #000;
+  background-color: #f4f8fc;
+}
+
+main {
+  background-color: #ffffff;
 }
 
 header {
   border-bottom: 0.2rem solid #000;
+  background-color: #ffffff;
 }
 
 nav {
@@ -27,8 +33,9 @@ footer {
   margin-top: 3rem;
   padding: 1.2rem 0;
   border-top: 0.2rem solid #000;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   color: #555;
+  background-color: #ffffff;
 }
 
 h1 {
@@ -51,6 +58,18 @@ article .header {
   text-decoration: none;
 }
 
+div .sourceCode {
+  background-color: #f4f8fc;
+  border: none;
+  border-radius: 8px;
+}
+
+pre.sourceCode {
+    background-color: #f4f8fc;
+    margin: 10px;
+    padding: 5px;
+}
+
 @media (max-width: 319px) {
   body {
     width: 90%;
@@ -59,10 +78,21 @@ article .header {
   }
   header {
     margin: 4.2rem 0;
+    padding: 1.2rem 0;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   nav {
     margin: 0 auto 3rem;
     text-align: center;
+  }
+  main {
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   footer {
     text-align: center;
@@ -88,10 +118,21 @@ article .header {
   }
   header {
     margin: 4.2rem 0;
+    padding: 1.2rem 0;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   nav {
     margin: 0 auto 3rem;
     text-align: center;
+  }
+  main {
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   footer {
     text-align: center;
@@ -116,8 +157,12 @@ article .header {
     padding: 0;
   }
   header {
-    margin: 0 0 3rem;
+    margin: 2rem 0 3rem;
     padding: 1.2rem 0;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   nav {
     margin: 0;
@@ -127,8 +172,20 @@ article .header {
     margin: 0 0 0 1.2rem;
     display: inline;
   }
+  main {
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
+  }
   footer {
     text-align: center;
+    padding: 1.2rem 0;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
+    margin-bottom: 10px;
   }
   .logo {
     margin: 0;
