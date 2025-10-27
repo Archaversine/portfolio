@@ -62,6 +62,198 @@ types <em>add</em> cardinalities together, and this is correct. To generalize th
 for any two types <span class="math inline">\(\alpha\)</span> and <span class="math inline">\(\beta\)</span> with <code>Either</code>:
 <span class="math inline">\(|Either\space\alpha\space\beta| = |\alpha| + |\beta|\)</span>. In fact, for any sum type <span class="math inline">\(S\)</span> with
 <span class="math inline">\(n\)</span> constructors, <span class="math inline">\(|S|=\sum_{i=1}^n|C_i|\)</span> (where <span class="math inline">\(C_i\)</span> is the <em>ith</em> constructor).</p>
+<p>As one might expect, this pattern extends to product types. Computing the
+cardinality of a product type is equal to the product of its inner cardinalities
+multiplied together. In other words, for some product type <span class="math inline">\(P\)</span> where
+<span class="math inline">\(P = \{p_1, p_2, ..., p_n\}\)</span>, <span class="math inline">\(|P|=\prod_{i=1}^n|p_i|\)</span>.</p>
+<p>The behavior of both sum types and product types can be used together to compute
+the cardinality of any arbitrary ADT. Consider the following example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyType</span> a b <span class="ot">=</span> <span class="dt">First</span> <span class="dt">Bool</span> (<span class="dt">Either</span> a <span class="dt">Bool</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                <span class="op">|</span> <span class="dt">Second</span> (<span class="dt">Either</span> a b)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>                <span class="op">|</span> <span class="dt">Third</span> a b <span class="dt">Bool</span></span></code></pre></div>
+<p>Now lets compute the cardinality of <code>MyType</code> parameterized by any two types
+<span class="math inline">\(\alpha\)</span> and <span class="math inline">\(\beta\)</span>. First, we see that <code>MyType</code> is a sum type with tree
+constructors, so its cardinality must be the sum of the cardinalities of its
+three constructors. Lets start with the first: <code>First Bool (Either a Bool)</code>.
+This is a product type consisting of <code>Bool</code> and <code>Either a Bool</code>, so the
+cardinality will be <span class="math inline">\(|Bool| + |Either\space\alpha\space Bool| = 2 + |Either\space\alpha\space Bool|\)</span>.
+And re-using the rule for sum types, this simplifies to: <span class="math inline">\(2 \times (|\alpha| + |Bool|) = 4 + 2|\alpha|\)</span>.
+We do not know what type <span class="math inline">\(\alpha\)</span> is, so we cannot simplify any further.
+Repeating this process for the next two constructors, we get that the second
+constructor has the cardinality <span class="math inline">\(|\alpha| + |\beta|\)</span> and the third has the
+cardinality <span class="math inline">\(2|\alpha||\beta|\)</span>. Thus, the whole cardinality for <code>MyType</code> is
+<span class="math inline">\(4 + 2|\alpha| + |\alpha| + |\beta| + 2|\alpha||\beta| = 4 + 3|\alpha| + |\beta| + 2|\alpha||\beta|\)</span>.</p>
+<p>Before moving on to the next part, there is actually one more type of
+significance: the <code>Void</code> type. In Haskell this is defined as:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Void</span></span></code></pre></div>
+<p>Unlike the sum and product types, <code>Void</code> does not have any constructors. What
+this means in the context of a program is that it is impossible to create a
+value of this type. Because of this behavior, <code>Void</code> is often used in proofs
+to represent contradictary values, and to prove impossibilities. The cardainality
+of this type is 0, because it has 0 inhabitants.</p>
+<p>Lets look at the consequenes of this. Consider the type <code>Either Void Bool</code>.
+Using the cardinality rules previously defined, we can deduce <span class="math inline">\(|Either\space Void\space Bool| = 0 + 2 = 2\)</span>.
+And this makes sense. Because the <code>Left</code> constructor of Either requires a value
+of type <code>Void</code>, <code>Left</code> cannot have any inhabitants. This means that the only
+inhabitants of <code>Either Void Bool</code> can be created using the <code>Right</code> constructor.
+The <code>Right</code> constructor only has a <code>Bool</code> value, so we know there are only
+two inhabitants. This matches up with our previously calculated cardinality of
+2. This also has implications for product types as well. The cardinality of
+<code>(a, b)</code> is <span class="math inline">\(|a| \times |b|\)</span>, which means that if either <span class="math inline">\(|a|\)</span> or <span class="math inline">\(|b|\)</span> is 0,
+then the cardinality of the entire tuple is also 0. This makes sense because
+a tuple requires a value to be specified for both the left and the right side
+at the same time.</p>
+<h2 id="isomorphisms">Isomorphisms</h2>
+<p>Now that we are able to represent ADTs as algebraic expressions, we can now
+look at one of the benefits of this sort of representation: isomorphisms. An
+isomorphism states that given two arbitrary types <span class="math inline">\(\alpha\)</span> and <span class="math inline">\(\beta\)</span>, the
+two are isomorphic if there exists two one-to-one mappings <span class="math inline">\(f : \alpha\rightarrow\beta\)</span>
+and <span class="math inline">\(g : \beta\rightarrow\alpha\)</span> such that <span class="math inline">\(f \circ g = g \circ f = id\)</span>.</p>
+<p>Lets example a simple morphism between the following two types:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Either</span> <span class="ot">=</span> <span class="dt">Left</span> () <span class="op">|</span> <span class="dt">Right</span> ()</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Bool</span> <span class="ot">=</span> <span class="dt">True</span> <span class="op">|</span> <span class="dt">False</span></span></code></pre></div>
+<p>In order to show that these two types are isomorphic, we need to specify
+mappings between both types:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">f ::</span> <span class="dt">Either</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>f (<span class="dt">Left</span> ())  <span class="ot">=</span> <span class="dt">False</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>f (<span class="dt">Right</span> ()) <span class="ot">=</span> <span class="dt">True</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ot">g ::</span> <span class="dt">Bool</span> <span class="ot">-&gt;</span> <span class="dt">Either</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>g <span class="dt">True</span>  <span class="ot">=</span> <span class="dt">Right</span> ()</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>g <span class="dt">False</span> <span class="ot">=</span> <span class="dt">Left</span> ()</span></code></pre></div>
+<p>And we need to show that composing the two mappings in either order is
+equivalent to the identity function. Since each type only has a small number
+of inhabitants, we can simply show every possible scenario:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>f (g  <span class="dt">True</span>) <span class="ot">=&gt;</span> f (<span class="dt">Right</span> ()) <span class="ot">=&gt;</span> <span class="dt">True</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>f (g <span class="dt">False</span>) <span class="ot">=&gt;</span> f (<span class="dt">Left</span>  ()) <span class="ot">=&gt;</span> <span class="dt">False</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>g (f (<span class="dt">Right</span> ())) <span class="ot">=&gt;</span> g <span class="dt">True</span>  <span class="ot">=&gt;</span> <span class="dt">Right</span> ()</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>g (f (<span class="dt">Left</span>  ())) <span class="ot">=&gt;</span> g <span class="dt">False</span> <span class="ot">=&gt;</span> <span class="dt">Left</span>  ()</span></code></pre></div>
+<p>But lets look further into why exact this is. What exactly is necessary for
+these two types to be isomorphic? The answer is the have the same cardinality,
+or same number of inhabitants. To further explain, if the two types do not have
+the same cardinality, then one will have more inhabitants than the other. This
+means that mapping from the type with more inhabitants to the other will
+ultimately result in a loss of information. And because of this, it becomes
+impossible to create two lawful mappings that satisfy the isomorphism laws.
+Looking at the previous example, the cardinality of <code>Either</code> is <span class="math inline">\(1 + 1 = 2\)</span>, and
+the cardinality of <code>Bool</code> is also <span class="math inline">\(2\)</span>. In fact, for any two types <span class="math inline">\(\alpha\)</span> and
+<span class="math inline">\(\beta\)</span>, if <span class="math inline">\(|\alpha| = |\beta|\)</span>, then <span class="math inline">\(\alpha\cong\beta\)</span> (<span class="math inline">\(\alpha\)</span> is
+isomorphic to <span class="math inline">\(\beta\)</span>).</p>
+<h3 id="derivatives">Derivatives</h3>
+<p>Apart from addition, multiplication, and exponentiation, one can also take
+the <em>derivative</em> of a type, which has some interesting properties. Lets consider
+the following type:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyType</span> a <span class="ot">=</span> <span class="dt">MyType</span> a a</span></code></pre></div>
+<p>We know that the cardinality of <code>MyType a</code> is <span class="math inline">\(a \times b\)</span> (where <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span>
+are cardinalities, not types). Lets take the derivative of <code>MyType a</code> with
+respect to <code>a</code>:</p>
+<p><span class="math display">\[\frac{\partial}{\partial a}(a \times a) = 2a\]</span></p>
+<p>What exactly does this mean? Here, when we are taking the derivative of
+<code>MyType a</code>, we are actually computing the <a href="https://wiki.haskell.org/index.php?title=Zipper">zipper</a>
+of <code>MyType a</code>. If we focus one one particular <code>a</code> in <code>MyType a</code>, we would end
+up with one of the folllowing types:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyType1</span> a <span class="ot">=</span> <span class="dt">MyType1</span> a _</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyType2</span> a <span class="ot">=</span> <span class="dt">MyType2</span> _ a</span></code></pre></div>
+<p>The underscore represents the <code>a</code> we are focusing on. Here, we can see that
+there are two different <code>a</code>s we can focus on, and in both cases we have another
+<code>a</code> that sits in the context. Using this intuition only, we could create a
+zipper type that uses the information:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyTypeZipper</span> a <span class="ot">=</span> <span class="dt">MyTypeZipper</span> <span class="dt">Bool</span> a</span></code></pre></div>
+<p>The <code>Bool</code> represents which <code>a</code> we are focusing on, and the other <code>a</code> represents
+the value of the <code>a</code> we are not focusing on. Now let’s revisit the derivative.
+Recall that the cardinality of the derivative of <code>MyType a</code> was <span class="math inline">\(2a\)</span>. Using the
+cardinality rules in reverse, we can see that <span class="math inline">\(2a\)</span> is some kind of product type
+where the left side has a cardinality of 2 and the right side has a cardinality
+of <span class="math inline">\(a\)</span>. We also know from earlier that <code>Bool</code> has a cardinality of 2, so we can
+assume that the left side is a boolean. We don’t know exactly what <span class="math inline">\(a\)</span> is, so we
+know the right side of the product type must be <span class="math inline">\(a\)</span>, so we’ll end up with some
+type that looks like <code>(Bool, a)</code>. If we compare this to the <code>MyTypeZipper</code> type,
+we can see that these two types are actually isomorphic because they have the
+same cardinality.</p>
+<p>This also works on more complex types. Lets create the zipper for the following
+type by computing its derivative:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyType</span> a <span class="ot">=</span> <span class="dt">One</span> a <span class="op">|</span> <span class="dt">Two</span> a a</span></code></pre></div>
+<p>We’ll start by computing the cardinality:</p>
+<p><span class="math display">\[|MyType\space\alpha|= a + a \times a = a + a^2, a = |\alpha|\]</span></p>
+<p>And now compute the derivative:</p>
+<p><span class="math display">\[\frac{\partial}{\partial a}(a + a^2) = 1 + 2a\]</span></p>
+<p>And construct a corresponding ADT:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyZipper</span> a <span class="ot">=</span> <span class="dt">Either</span> () (<span class="dt">Bool</span>, a)</span></code></pre></div>
+<p>Now lets understand the intuition. In <code>MyType a</code>, there are two possible
+constructors. If we focus on the <code>a</code> in the first constructor, then we don’t
+have any other contextual information. Thus, we represent this scenario with
+<code>Left ()</code>. In the second constructor, we can see that there are two different
+<code>a</code>s we can focus on (which we specify in the zipper with a <code>Bool</code>), and will
+always end up with an extra <code>a</code> in the context. Hence, the <code>Right</code> constructor
+will take in a value of type <code>(Bool, a)</code>.</p>
+<h2 id="automatically-computing-the-derivative">Automatically Computing the Derivative</h2>
+<p>Now, lets look at this in a Haskell program. Is there a way to automatically
+compute the derivative of a type using type level programming? If we make some
+constraints on what sorts of ADTs we take in as input, then the answer is yes
+we can.</p>
+<p>Lets start by defining a type family which computes the derivative of a type:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- derivative of ty with respect to x</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">TypeDeriv</span> (<span class="ot">x ::</span> <span class="dt">Type</span>) (<span class="ot">ty ::</span> <span class="dt">Type</span>)<span class="ot"> ::</span> <span class="dt">Type</span> <span class="kw">where</span></span></code></pre></div>
+<p>As input, we are only going to pass in types that are constructed in one of
+the following ways:</p>
+<ul>
+<li>Using the <code>Either</code> type</li>
+<li>Using the tuple type</li>
+<li>Using the <code>()</code> (unit) type</li>
+<li>Using the <code>Void</code> type</li>
+</ul>
+<p><em>Note: I could have also added <code>-&gt;</code> for exponentiation, but I am leaving that
+out for simplicity.</em></p>
+<p>Using standard differentiation rules, we can algebraically compute the
+derivatives for each of these types:</p>
+<p><span class="math display">\[\frac{\partial|\alpha+\beta|}{\partial x}=\frac{\partial a}{\partial x}+\frac{\partial b}{\partial x}\]</span>
+<span class="math display">\[\frac{\partial|(\alpha\times\beta)|}{\partial x}=\frac{\partial a}{\partial x}b+a\frac{\partial b}{\partial x}\]</span>
+<span class="math display">\[\frac{\partial|Unit|}{\partial x}=\frac{\partial}{\partial x}(1)=0\]</span>
+<span class="math display">\[\frac{\partial|Void|}{\partial x}=\frac{\partial}{\partial x}(0)=0\]</span>
+<span class="math display">\[\frac{\partial x}{\partial x}=1\]</span></p>
+<p>Now, we can use these formulas in our type family:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">TypeDeriv</span> (<span class="ot">x ::</span> <span class="dt">Type</span>) (<span class="ot">ty ::</span> <span class="dt">Type</span>)<span class="ot"> ::</span> <span class="dt">Type</span> <span class="kw">where</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TypeDeriv</span> x (<span class="dt">Either</span> a b) <span class="ot">=</span> <span class="dt">Either</span> (<span class="dt">TypeDeriv</span> x a) (<span class="dt">TypeDeriv</span> x b)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TypeDeriv</span> x (a, b) <span class="ot">=</span> <span class="dt">Either</span> (<span class="dt">TypeDeriv</span> x a, b) (a, <span class="dt">TypeDeriv</span> x b)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TypeDeriv</span> x ()   <span class="ot">=</span> <span class="dt">Void</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TypeDeriv</span> x <span class="dt">Void</span> <span class="ot">=</span> <span class="dt">Void</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TypeDeriv</span> x x    <span class="ot">=</span> ()</span></code></pre></div>
+<p>Lets try this on the previous example:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">MyType</span> a <span class="ot">=</span> <span class="dt">One</span> a <span class="op">|</span> <span class="dt">Two</span> a a</span></code></pre></div>
+<p>First, we need to rewrite <code>MyType</code> in terms of those supported by our type
+family:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">MyType</span> a <span class="ot">=</span> <span class="dt">Either</span> a (a, a)</span></code></pre></div>
+<p>And since type families have limitations on their resolution capabilites, we
+will create a fake arbitrary type <code>A</code> to act as a place holder for what would
+be a typical type variable <code>a</code>.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">A</span></span></code></pre></div>
+<p>Now, lets ask the compiler by using a hole what the type of <code>TypeDeriv A (Either A (A, A))</code>:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ot">myValue ::</span> <span class="dt">TypeDeriv</span> <span class="dt">A</span> (<span class="dt">MyType</span> <span class="dt">A</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>myValue <span class="ot">=</span> _</span></code></pre></div>
+<pre><code>Main.hs:40:8: error: [GHC-88464]
+    • Found hole: _ :: Either () (Either ((), A) (A, ()))
+    • In an equation for ‘myValue’: myValue = _
+    • Relevant bindings include
+        myValue :: TypeDeriv A (MyType A) (bound at Main.hs:40:1)
+      Valid hole fits include
+        myValue :: TypeDeriv A (MyType A) (bound at Main.hs:40:1)
+   |
+40 | myValue = _
+   |           ^</code></pre>
+<p>We can see that the type family came up with the type <code>Either () (Either ((), A) (A, ()))</code>
+instead of our previous answer of <code>Either () (Bool, a)</code>. When we came up with
+an answer by hand, we did additional algebraic manipulations to simplify the answer.
+Currently, the type family does not have the capability to do that (but could
+theoretically!). We can prove that the type family returned a valid answer by
+proving the two are isomorphic. If we look at both answers, we see that they
+both follow the pattern <code>Either () _</code>, so we know that at least that part is
+isomorphic because they are exactly the same. Now, we have to prove that
+<code>Either ((), A) (A, ())</code> is isomorphic to <code>(Bool, a)</code>. Lets compute the cardinality
+of the first. When doing this, we get <span class="math inline">\(1 \ times A + A \times 1 = A + A = 2A\)</span>.
+This is equivalent to the cardinality of <code>(Bool, a)</code> which is <span class="math inline">\(2 \times A = 2A\)</span>.
+We see these two are isomorphic, and thus, the type family returned the correct
+answer.</p>
     </section>
 </article>
 
