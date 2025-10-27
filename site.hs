@@ -17,7 +17,9 @@ pandocCodeStyle = kate
 myPandocCompiler :: Compiler (Item String)
 myPandocCompiler = pandocCompilerWith
                      defaultHakyllReaderOptions 
-                     defaultHakyllWriterOptions { writerHighlightMethod = Skylighting pandocCodeStyle }
+                     defaultHakyllWriterOptions { writerHighlightMethod = Skylighting pandocCodeStyle
+                                                , writerHTMLMathMethod = MathJax ""
+                                                }
 
 main :: IO ()
 main = hakyllWith config $ do
@@ -32,14 +34,14 @@ main = hakyllWith config $ do
     match (fromList ["about.rst", "contact.markdown"]) $ do
         route   $ setExtension "html"
         compile $ pandocCompiler
-            >>= loadAndApplyTemplate "templates/default.html" defaultContext
+            >>= loadAndApplyTemplate "templates/default.html" (mathCtx `mappend` defaultContext)
             >>= relativizeUrls
 
     match "posts/*" $ do
         route $ setExtension "html"
         compile $ myPandocCompiler
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
-            >>= loadAndApplyTemplate "templates/default.html" postCtx
+            >>= loadAndApplyTemplate "templates/default.html" (mathCtx `mappend` defaultContext)
             >>= relativizeUrls
 
     create ["archive.html"] $ do
@@ -49,6 +51,7 @@ main = hakyllWith config $ do
             let archiveCtx =
                     listField "posts" postCtx (return posts) `mappend`
                     constField "title" "Archives"            `mappend`
+                    mathCtx                                  `mappend`
                     defaultContext
 
             makeItem ""
@@ -67,7 +70,7 @@ main = hakyllWith config $ do
 
             getResourceBody
                 >>= applyAsTemplate indexCtx
-                >>= loadAndApplyTemplate "templates/default.html" indexCtx
+                >>= loadAndApplyTemplate "templates/default.html" (mathCtx `mappend` indexCtx)
                 >>= relativizeUrls
 
     match "templates/*" $ compile templateBodyCompiler
@@ -83,3 +86,10 @@ postCtx :: Context String
 postCtx =
     dateField "date" "%B %e, %Y" `mappend`
     defaultContext
+
+mathCtx :: Context a
+mathCtx = field "mathjax" $ \item -> do 
+    metadata <- getMetadata $ itemIdentifier item
+    return $ case lookupString "mathjax" metadata of 
+        Nothing -> ""
+        Just _  -> "<script type=\"text/javascript\" src=\"http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML\"></script>"
