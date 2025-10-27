@@ -7,7 +7,7 @@
         <title>My Hakyll Blog - Automatic Type Differentiation in Haskell</title>
         <link rel="stylesheet" href="../css/default.css" />
         <link rel="stylesheet" href="../css/syntax.css" />
-        <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/javascript" src="//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     </head>
     <body>
         <header>
@@ -250,7 +250,7 @@ proving the two are isomorphic. If we look at both answers, we see that they
 both follow the pattern <code>Either () _</code>, so we know that at least that part is
 isomorphic because they are exactly the same. Now, we have to prove that
 <code>Either ((), A) (A, ())</code> is isomorphic to <code>(Bool, a)</code>. Lets compute the cardinality
-of the first. When doing this, we get <span class="math inline">\(1 \ times A + A \times 1 = A + A = 2A\)</span>.
+of the first. When doing this, we get <span class="math inline">\(1 \times A + A \times 1 = A + A = 2A\)</span>.
 This is equivalent to the cardinality of <code>(Bool, a)</code> which is <span class="math inline">\(2 \times A = 2A\)</span>.
 We see these two are isomorphic, and thus, the type family returned the correct
 answer.</p>

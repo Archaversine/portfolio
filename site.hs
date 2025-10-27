@@ -27,6 +27,10 @@ main = hakyllWith config $ do
         route   idRoute
         compile copyFileCompiler
 
+    match "js/*" $ do 
+        route   idRoute
+        compile copyFileCompiler
+
     match "css/*" $ do
         route   idRoute
         compile compressCssCompiler
@@ -92,4 +96,5 @@ mathCtx = field "mathjax" $ \item -> do
     metadata <- getMetadata $ itemIdentifier item
     return $ case lookupString "mathjax" metadata of 
         Nothing -> ""
-        Just _  -> "<script type=\"text/javascript\" src=\"http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML\"></script>"
+        Just _  -> "<script type=\"text/javascript\" src=\"//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML\"></script>"
+        -- Just _  -> "<script type=\"text/javascript\" src=\"/js/mathjax.js\"></script>"

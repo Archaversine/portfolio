@@ -320,7 +320,7 @@ proving the two are isomorphic. If we look at both answers, we see that they
 both follow the pattern `Either () _`, so we know that at least that part is 
 isomorphic because they are exactly the same. Now, we have to prove that 
 `Either ((), A) (A, ())` is isomorphic to `(Bool, a)`. Lets compute the cardinality
-of the first. When doing this, we get $1 \ times A + A \times 1 = A + A = 2A$. 
+of the first. When doing this, we get $1 \times A + A \times 1 = A + A = 2A$. 
 This is equivalent to the cardinality of `(Bool, a)` which is $2 \times A = 2A$.
 We see these two are isomorphic, and thus, the type family returned the correct
 answer.
