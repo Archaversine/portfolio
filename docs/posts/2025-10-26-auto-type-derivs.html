@@ -60,8 +60,9 @@ and <code>Right False</code>. So in total, there are <span class="math inline">\
 <code>Either () Bool</code>, so its cardinality is 3. A sharp reader may notice that <em>sum</em>
 types <em>add</em> cardinalities together, and this is correct. To generalize this
 for any two types <span class="math inline">\(\alpha\)</span> and <span class="math inline">\(\beta\)</span> with <code>Either</code>:
-<span class="math inline">\(|Either\space\alpha\space\beta| = |\alpha| + |\beta|\)</span>. In fact, for any sum type <span class="math inline">\(S\)</span> with
-<span class="math inline">\(n\)</span> constructors, <span class="math inline">\(|S|=\sum_{i=1}^n|C_i|\)</span> (where <span class="math inline">\(C_i\)</span> is the <em>ith</em> constructor).</p>
+<span class="math inline">\(|Either\space\alpha\space\beta| = |\alpha| + |\beta|\)</span>. In fact, for any sum type <span class="math inline">\(S\)</span>
+where <span class="math inline">\(S = \{s_1, s_2, ..., s_n\}\)</span> and <span class="math inline">\(s_i\)</span> is the <em>ith</em> constructor of <span class="math inline">\(S\)</span>:
+<span class="math inline">\(|S|=\sum_{i=1}^n|s_i|\)</span>.</p>
 <p>As one might expect, this pattern extends to product types. Computing the
 cardinality of a product type is equal to the product of its inner cardinalities
 multiplied together. In other words, for some product type <span class="math inline">\(P\)</span> where
