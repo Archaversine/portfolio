@@ -31,6 +31,7 @@ nav a {
 
 footer {
   margin-top: 3rem;
+  margin-bottom: 3rem;
   padding: 1.2rem 0;
   border-top: 0.2rem solid #000;
   font-size: 1.5rem;
@@ -96,6 +97,11 @@ pre.sourceCode {
   }
   footer {
     text-align: center;
+    padding: 1.2rem 0;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   .logo {
     text-align: center;
@@ -136,6 +142,11 @@ pre.sourceCode {
   }
   footer {
     text-align: center;
+    padding: 1.2rem 0;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
   }
   .logo {
     text-align: center;
@@ -185,7 +196,6 @@ pre.sourceCode {
     border: none;
     border-radius: 8px;
     box-shadow: 0 0 12px 1px rgba(42,42,42,0.2);
-    margin-bottom: 10px;
   }
   .logo {
     margin: 0;
