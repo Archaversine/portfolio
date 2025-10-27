@@ -41,8 +41,9 @@ and `Right False`. So in total, there are $1 + 2 = 3$ inhabitants of
 `Either () Bool`, so its cardinality is 3. A sharp reader may notice that _sum_
 types _add_ cardinalities together, and this is correct. To generalize this
 for any two types $\alpha$ and $\beta$ with `Either`:
-$|Either\space\alpha\space\beta| = |\alpha| + |\beta|$. In fact, for any sum type $S$ with
-$n$ constructors, $|S|=\sum_{i=1}^n|C_i|$ (where $C_i$ is the _ith_ constructor).
+$|Either\space\alpha\space\beta| = |\alpha| + |\beta|$. In fact, for any sum type $S$ 
+where $S = \{s_1, s_2, ..., s_n\}$ and $s_i$ is the _ith_ constructor of $S$:
+$|S|=\sum_{i=1}^n|s_i|$.
 
 As one might expect, this pattern extends to product types. Computing the 
 cardinality of a product type is equal to the product of its inner cardinalities
