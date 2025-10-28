@@ -1,5 +1,5 @@
 {
-  description = "Workshop Preference Sorter";
+  description = "My personal website";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
