@@ -21,7 +21,21 @@
                 nativeBuildInputs = native-build-inputs;
             };
 
-            defaultPackage = pkgs.haskellPackages.callCabal2nix "adam-portfolio" ./. { };
+            defaultPackage = pkgs.haskellPackages.callCabal2nix "adam-portfolio" ./. {
+                pandoc = pkgs.haskellPackages.callHackage "pandoc" "3.8" {
+                    citeproc = pkgs.haskellPackages.callHackage "citeproc" "0.10" { };
+                    texmath = pkgs.haskellPackages.callHackage "texmath" "0.13" { };
+                };
+            };
+
+            packages.default = pkgs.haskell.lib.addBuildTools defaultPackage (with pkgs.haskellPackages; [
+                alex
+                happy
+                cpphs
+                hscolour
+                uhc-light
+                pkgs.pkg-config
+            ]);
         }
     );
 }
