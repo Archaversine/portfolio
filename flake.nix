@@ -20,6 +20,8 @@
             devShell = pkgs.mkShell {
                 nativeBuildInputs = native-build-inputs;
             };
+
+            defaultPackage = pkgs.haskellPackages.callCabal2nix "adam-portfolio" ./. { };
         }
     );
 }
