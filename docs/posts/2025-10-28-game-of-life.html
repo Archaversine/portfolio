@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - Implementing Game of Life with Comonads</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Implementing Game of Life with Comonads</h1>
+            <article>
+    <section class="header">
+        Posted on October 28, 2025
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>One of the most highly associated words in Haskell is <em>monad</em>, and for good
+reason too. Without monads, programming in Haskell would be extremely tedious,
+and a lot of generalized abstractions wouldn’t even exist. But there is a lot
+more to Haskell than just monads. As you might expect from the title of this
+post, I am talking about comonads. There are already multiple posts explaining
+comonads, and especially how to model Conway’s Game of Life with them, but I
+personally found them to be more technical and offer little to no intuitive
+explanations. Hopefully this post provides that.</p>
+<h2 id="what-is-a-comonad">What is a Comonad?</h2>
+<p>First, what exactly is a comonad. The most often used definition I see people
+give to this quesion is that it is, “the dual of a monad.” If you are not well
+versed in category theory, I find this explanation to be a bit lacking. Lets
+examine exactly what that means. In Haskell, we can define the <code>Monad</code>
+typeclass is like so:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Applicative</span> m <span class="ot">=&gt;</span> <span class="dt">Monad</span> m <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    (&gt;&gt;=) ::</span> m a <span class="ot">-&gt;</span> (a <span class="ot">-&gt;</span> m b) <span class="ot">-&gt;</span> m b</span></code></pre></div>
+<p>Intuitively, we can think of the <code>(&gt;&gt;=)</code> operater as something that:</p>
+<ul>
+<li>Takes in a value <code>a</code> in some context <code>m</code></li>
+<li>Takes in a function that acts on an <code>a</code> and returns <code>b</code> in a context <code>m</code></li>
+<li>Returns a <code>b</code> in context <code>m</code>.</li>
+</ul>
+<p>When we take the dual of monad, what we actually do in Haskell is reverse the
+direction of the arrows to something like: <code>m a &lt;- (a &lt;- m b) &lt;- m b</code>. We can
+flip the expression around by pointing the arrows to the right instead of the
+left and get: <code>m b -&gt; (m b -&gt; a) -&gt; m a</code>. We can also swap <code>b</code> and <code>a</code> so that
+<code>a</code> appears first, which we can do because they are both type variables, and
+get: <code>m a -&gt; (m a -&gt; b) -&gt; m b</code>. And finally, a comonad is typically represented
+by <code>w</code> instead of <code>m</code> (where the <code>w</code> is a horizontally mirrored <code>m</code>), so we can
+rewrite it as: <code>w a -&gt; (w a -&gt; b) -&gt; w b</code>. And this new function is the dual
+of bind, named <code>extend</code>.</p>
+<p>Due to some technical reasons beyond the scope of this post, there is no
+coapplicative class in Haskell. Instead, one typically tries to define all the
+relevant functions inside the <code>Comonad</code> typelcass. So lets look at the three
+functions from <code>Monad</code> we’ll need to compute the duals of:</p>
+<ul>
+<li><code>(&gt;&gt;=)  :: m a -&gt; (a -&gt; m b) -&gt; m b</code></li>
+<li><code>join   :: m (m a) -&gt; m a</code></li>
+<li><code>return :: a -&gt; m a</code></li>
+</ul>
+<p><code>join</code> and <code>return</code> are relatively easy to compute the duals of, as we just
+use the same process as before:</p>
+<ul>
+<li><code>cojoin   :: w a -&gt; w (w a)</code></li>
+<li><code>coreturn :: w a -&gt; a</code></li>
+</ul>
+<p>While <code>cojoin</code> and <code>coreturn</code> are used in some places, they often go by
+more intuitive names. <code>cojoin</code> is usually referred to as <code>duplicate</code>, and
+<code>coreturn</code> is typically called <code>extract</code>. I will use the latter in both cases.
+It is also worth noting that the dual of <code>(&gt;&gt;=)</code> is named <code>(=&gt;&gt;)</code>. Putting
+these all together, we can finally write code for the <code>Comonad</code> typeclass:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Functor</span> w <span class="ot">=&gt;</span> <span class="dt">Comonad</span> w <span class="kw">where</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    (=&gt;&gt;)     ::</span> w a <span class="ot">-&gt;</span> (w a <span class="ot">-&gt;</span> b) <span class="ot">-&gt;</span> w b</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    extract   ::</span> w a <span class="ot">-&gt;</span> a </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    duplicate ::</span> w a <span class="ot">-&gt;</span> w (w a)</span></code></pre></div>
+<p><em>Note: <code>duplicate</code> and <code>extend</code> (<code>=&gt;&gt;</code>) can actually be defined in terms of
+each other. So when creating a comonad instance, you typically only define
+2 out of the three functions.</em></p>
+<p>All of these will be explained in more further detail further on. But for now,
+Intuitively, we could think of the each of the following intuition-based
+explanations for all the comonad functions:</p>
+<ul>
+<li><code>(=&gt;&gt;)</code>: This function takes in an <code>a</code> in some context <code>w</code>, and a function
+that maps from a <code>w a</code> to some value <code>b</code>, and returns a <code>b</code> in some context.</li>
+<li><code>extract</code>: This function <em>extracts</em> an <code>a</code> out of some context <code>w</code>.</li>
+<li><code>duplicate</code>: This function <em>duplicates</em> the context <code>w</code> of <code>a</code>.</li>
+</ul>
+<h3 id="real-world-example">Real World Example</h3>
+<p>A real life example of a comonad that really stuck with me was a HDD.
+Internally, an HDD can contain terabytes of information, but accesses singular
+points of the data using a type of needle. Here, the <code>extract</code> function would
+read the data the needle is currently pointing to, the <code>duplicate</code> function
+would treat each individually point as an HDD centered around that point, and
+the <code>(=&gt;&gt;)</code> operator can be thought of something that takes an HDD on the left
+side, and a formula which may use information from anywhere on the drive that
+yields a single value, which will result in a new HDD with that formula applied
+to every point.</p>
+<h3 id="store-comonad">Store Comonad</h3>
+<p>The <code>comonad</code> library gives us a tool</p>
+<h2 id="conways-game-of-life">Conway’s Game of Life</h2>
+<h3 id="why-are-comonads-useful-here">Why Are Comonads Useful Here?</h3>
+<h3 id="grid-type">Grid Type</h3>
+<h3 id="implementing-the-game">Implementing the Game</h3>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
