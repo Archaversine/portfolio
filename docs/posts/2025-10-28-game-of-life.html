@@ -110,11 +110,175 @@ side, and a formula which may use information from anywhere on the drive that
 yields a single value, which will result in a new HDD with that formula applied
 to every point.</p>
 <h3 id="store-comonad">Store Comonad</h3>
-<p>The <code>comonad</code> library gives us a tool</p>
+<p>The <code>comonad</code> library implements a comonad for us that behaves in a very similar
+way: the <code>Store</code> comonad. In its simplest form, the <code>Store</code> comonad is
+implemented as:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Store</span> s a <span class="ot">=</span> <span class="dt">Store</span> {<span class="ot"> peek ::</span> s <span class="ot">-&gt;</span> a,<span class="ot"> pos ::</span> s }</span></code></pre></div>
+<p>The <code>peek</code> value represents a function that takes in some index of type <code>s</code>,
+and returns a value of type <code>a</code>. The <code>pos</code> function returns the current index.
+In terms of the previous HDD example, <code>pos</code> represents where the needle is
+currently pointing to.</p>
+<p>After defining a <code>Functor</code> instance, we can than define a <code>Comonad</code> instance:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Store</span> s a <span class="ot">=</span> <span class="dt">Store</span> {<span class="ot"> peek ::</span> s <span class="ot">-&gt;</span> a,<span class="ot"> pos ::</span> s } <span class="kw">deriving</span> <span class="dt">Functor</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Comonad</span> (<span class="dt">Store</span> s) <span class="kw">where</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    extract st   <span class="ot">=</span> peek st (pos st)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    duplicate st <span class="ot">=</span> <span class="dt">Store</span> (\s <span class="ot">-&gt;</span> <span class="dt">Store</span> (peek st) s) (pos st)</span></code></pre></div>
+<p>Extracting a value is as simple as peeking at the current position of the store.
+Duplicating the store requires redefining the <code>peek</code> function in such a way
+that indexing with <code>s</code> returns a store whose position is set at <code>s</code>.</p>
 <h2 id="conways-game-of-life">Conway’s Game of Life</h2>
-<h3 id="why-are-comonads-useful-here">Why Are Comonads Useful Here?</h3>
+<p>Conway’s Game of Life is an incredibly simple simulation containing a grid of
+cells which only have two states: alive and dead. The state of each cell is
+entirely dependent (except for the initial states which are provided by the
+user) on their adjacent neighbors. In other words, the value of each cell can
+be extracted from the context (i.e. the board), which is exactly what the two
+previous examples covered.</p>
 <h3 id="grid-type">Grid Type</h3>
+<p>Due to performance reasons, I will not be using the <code>Store</code> type that comes
+in the <code>comonad</code> library. Instead, I will be creating a new datatype that
+resembles it very closely, and even create an instance of the <code>ComonadStore</code>
+typeclass for the new type.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Vector</span> (<span class="dt">Vector</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Data.Vector</span> <span class="kw">as</span> <span class="dt">Vector</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Grid</span> a <span class="ot">=</span> <span class="dt">Grid</span> <span class="op">!</span>(<span class="dt">Vector</span> (<span class="dt">Vector</span> a)) (<span class="dt">Int</span>, <span class="dt">Int</span>) <span class="kw">deriving</span> <span class="dt">Functor</span></span></code></pre></div>
+<p>As one might assume, the <code>Grid</code> type will be the comonad that represents the
+state of all cells in the simulation. The datatype consists of two main parts.
+The first is the actual array of cells, which is encoded as a vector of vectors,
+and the second is a tuple of integers, which represents the location in the
+array that is currently “selected”. This is very similar to the <code>Store</code> comonad
+except instead of having an indexing function, we carry around the thing we are
+indexing. Now, we can define an instance of <code>Comonad</code> for our new <code>Grid</code> type:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Comonad</span> <span class="dt">Grid</span> <span class="kw">where</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    extract   (<span class="dt">Grid</span> xs (x, y)) <span class="ot">=</span> xs <span class="op">!</span> x <span class="op">!</span> y</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    duplicate (<span class="dt">Grid</span> xs (x, y)) <span class="ot">=</span> <span class="dt">Grid</span> duplicated (x, y)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="kw">where</span> duplicated <span class="ot">=</span> <span class="fu">fmap</span> (\(x', v)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>                            <span class="ot">-&gt;</span> <span class="fu">fmap</span> (\(y', _)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>                                <span class="ot">-&gt;</span> <span class="dt">Grid</span> xs (x', y')) (Vector.indexed v))</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>                            (Vector.indexed xs)</span></code></pre></div>
+<p>The <code>extract</code> function is trivial; it simply retrieves the values at the stored
+pair of indices. The <code>duplicate</code> function is implemented in a very similar way
+to the <code>Store</code> comonad, where each element of the original array becomes a vector
+centered around that particular index.</p>
+<p>I also mentioned the <code>ComonadStore</code> typeclass. This is similar to something
+like <code>MonadState</code> where the <code>get</code> and <code>put</code> can be defined for monads other
+than <code>State</code>. We will use this to be able to use the <code>peek</code> and <code>pos</code> functions
+on our <code>Grid</code> type:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">ComonadStore</span> (<span class="dt">Int</span>, <span class="dt">Int</span>) <span class="dt">Grid</span> <span class="kw">where</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    pos (<span class="dt">Grid</span> _ p) <span class="ot">=</span> p</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    peek (x, y) (<span class="dt">Grid</span> xs _) <span class="ot">=</span> xs <span class="op">!</span> x <span class="op">!</span> y </span></code></pre></div>
 <h3 id="implementing-the-game">Implementing the Game</h3>
+<p>Now that we have our underlying <code>Grid</code> type, we can actually start implmeneting
+the rest of the game, which is now shockingly easy. First, we need a function
+which computes all adjacent locations for an arbitrary given location. I’ve
+defined two helper functions that do just that:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">gridSize ::</span> <span class="dt">Int</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>gridSize <span class="ot">=</span> <span class="dv">20</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ot">adjacentOffsets ::</span> [(<span class="dt">Int</span>, <span class="dt">Int</span>)]</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>adjacentOffsets <span class="ot">=</span> [(x, y) <span class="op">|</span> x <span class="ot">&lt;-</span> [<span class="op">-</span><span class="dv">1</span><span class="op">..</span><span class="dv">1</span>], y <span class="ot">&lt;-</span> [<span class="op">-</span><span class="dv">1</span><span class="op">..</span><span class="dv">1</span>], (x, y) <span class="op">/=</span> (<span class="dv">0</span>, <span class="dv">0</span>)]</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="ot">neighbors ::</span> (<span class="dt">Int</span>, <span class="dt">Int</span>) <span class="ot">-&gt;</span> [(<span class="dt">Int</span>, <span class="dt">Int</span>)]</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>neighbors (x, y) <span class="ot">=</span> [ (x', y')</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>                   <span class="op">|</span> (dx, dy) <span class="ot">&lt;-</span> adjacentOffsets</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>                   , <span class="kw">let</span> x' <span class="ot">=</span> x <span class="op">+</span> dx</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>                   , <span class="kw">let</span> y' <span class="ot">=</span> y <span class="op">+</span> dy</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>                   , x' <span class="op">&gt;=</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> x' <span class="op">&lt;</span> gridSize</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>                   , y' <span class="op">&gt;=</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> y' <span class="op">&lt;</span> gridSize</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>                   ]</span></code></pre></div>
+<p><em>Note: The <code>neighbors</code> function filters out any invalid locations, so we don’t
+have to worry about indexing in an unsafe way.</em></p>
+<p>And finally, some helper functions for working with our grid type:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">printGrid ::</span> <span class="dt">Grid</span> <span class="dt">Bool</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>printGrid (<span class="dt">Grid</span> xs _) <span class="ot">=</span> <span class="fu">mapM_</span> printRow xs</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span> printRow row <span class="ot">=</span> <span class="fu">putStrLn</span> <span class="op">$</span> intersperse <span class="ch">' '</span> </span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>                                  <span class="op">$</span> <span class="fu">map</span> (bool <span class="ch">'.'</span> <span class="ch">'#'</span>) (Vector.toList row)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ot">gridFromSquares ::</span> [(<span class="dt">Int</span>, <span class="dt">Int</span>)] <span class="ot">-&gt;</span> <span class="dt">Grid</span> <span class="dt">Bool</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>gridFromSquares xs <span class="ot">=</span> <span class="dt">Grid</span> grid (<span class="dv">0</span>, <span class="dv">0</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span> grid <span class="ot">=</span> Vector.generate gridSize</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>                    (\x <span class="ot">-&gt;</span> Vector.generate gridSize (\y <span class="ot">-&gt;</span> (x, y) <span class="ot">`elem`</span> xs))</span></code></pre></div>
+<p>The <code>gridFromSquares</code> function takes in a list of squares that should start
+as active, and then generate the corresponding 2D vector. We are also using
+<code>Grid Bool</code> as the actual type of the board, where <code>True</code> represents alive and
+<code>False</code> represents dead.</p>
+<p>Now, we can define the actual logic for the game that specifies what the state
+of a square should be for the next iteration. The game of life has a very
+simple set of rules:</p>
+<ul>
+<li>If a cell is currently alive, it will remain alive as long as there are at
+least 2 neighboring living cells and at most 3 neighboring cells. Otherwise,
+it will die.</li>
+<li>If a cell is not currently alive, then it will <em>only</em> become alive if there
+are exactly three neighboring cells that are alive.</li>
+</ul>
+<p>We can represent this logic as a function that takes in a grid, and returns
+the state for the currently selected cell:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">step ::</span> <span class="dt">Grid</span> <span class="dt">Bool</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>step grid <span class="ot">=</span> <span class="kw">if</span> self <span class="kw">then</span> ns <span class="ot">`elem`</span> [<span class="dv">2</span>, <span class="dv">3</span>] <span class="kw">else</span> ns <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span> ns   <span class="ot">=</span> <span class="fu">length</span> <span class="op">$</span> <span class="fu">filter</span> (<span class="fu">flip</span> peek grid) <span class="op">$</span> neighbors (pos grid)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>          self <span class="ot">=</span> peek (pos grid) grid <span class="co">-- current cell state</span></span></code></pre></div>
+<p>Notice the type signature of <code>step</code>. It fits perfectly into the <code>(=&gt;&gt;)</code> operator
+that we defined earlier for comonads. And this was done on purpose. Lets see
+what happens when we use this function on a grid.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> grid <span class="ot">=</span> gridFromSquares [(<span class="dv">1</span>, <span class="dv">1</span>), (<span class="dv">1</span>, <span class="dv">1</span>), (<span class="dv">2</span>, <span class="dv">2</span>), (<span class="dv">3</span>, <span class="dv">3</span>), (<span class="dv">5</span>, <span class="dv">5</span>)]</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    printGrid grid</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    printGrid (grid <span class="op">=&gt;&gt;</span> step)</span></code></pre></div>
+<p>We will get the following output to the screen:</p>
+<pre><code>. . . . . . . . . . . . . . . . . . . .
+. # # . . . . . . . . . . . . . . . . .
+. . # . . . . . . . . . . . . . . . . .
+. . . # . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . # . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+
+. . . . . . . . . . . . . . . . . . . .
+. # # . . . . . . . . . . . . . . . . .
+. # # # . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .
+. . . . . . . . . . . . . . . . . . . .</code></pre>
+<p>And by the magic of the comonad, everything works. We can see that some of our
+initial cells stayed active because they had a sufficient amount of adjacent
+living neighbors, two of them died off because they were too isolated, and two
+cells switched to alive because there were enough living neighbors nearby. Why
+does this work? This works because when we use the <code>extend</code> function <code>(=&gt;&gt;)</code>
+the <code>Grid</code> type is duplicated to a <code>Grid (Grid Bool)</code>, and then our <code>step</code>
+function is mapped via <code>fmap</code> to cause each inner <code>Grid Bool</code> to collapse back
+into a <code>Bool</code>.</p>
     </section>
 </article>
 
