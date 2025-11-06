@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - Amogus - Among Us Logical Lie Detector</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Amogus - Among Us Logical Lie Detector</h1>
+            <article>
+    <section class="header">
+        Posted on October 24, 2023
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>A cross-platform ergonomic DSL (Domain Specific Language) written in Haskell that utilizes
+<a href="https://github.com/Archaversine/allen">Allen’s Interval Algebra</a> to find
+logical inconsistencies in people’s alibis.</p>
+<h2 id="documentation">Documentation</h2>
+<p>There are three main statements in the DSL: <code>list</code>, <code>set</code>, and <code>query</code>.</p>
+<h3 id="local-global-events">Local &amp; Global Events</h3>
+<p>There are two types of events that the DSL focuses on. First there is a local
+event. This is a type of event that has a person attached to it. For example,
+Bob completing the wires task would be notated as <code>bob.wires</code>.</p>
+<p>A global event is an event that doesn’t have a person attached to it. For instance,
+pushing the button to call a meeting or when a body was reported. These are
+signified with a <code>#</code> symbol, such as <code>#button</code> or <code>#report</code>.</p>
+<h3 id="list-statement">List Statement</h3>
+<p>To define a sequence of actions that a person performed you can use the <code>list</code>
+command to list them all out in order. The syntax is as follows:</p>
+<pre><code>list &lt;personName&gt; &lt;action1&gt; [action2] [action3] ... </code></pre>
+<p>For example, in order to notate that player Bob first did wires, then lights,
+and then comms, you would simply write the following:</p>
+<pre><code>list bob wires lights comms</code></pre>
+<p>Note that this and all commands are terminated by a newline, so all events must
+be defined on the same line.</p>
+<h3 id="set-statement">Set Statement</h3>
+<p>To manually specify relations between two events, you can use the <code>set</code> statements.
+The syntax is as follows:</p>
+<pre><code>set &lt;event1&gt; &lt;relation symbol&gt; &lt;event2&gt;</code></pre>
+<p>For example, if bob’s wire task occurred before Alice’s light’s task, you would
+use the following:</p>
+<pre><code>set bob.wires -&gt; alice.lights</code></pre>
+<p>The symbols that can be used are:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-&gt;</code></td>
+<td>Precedes</td>
+</tr>
+<tr>
+<td><code>-&gt;\|</code></td>
+<td>Meets</td>
+</tr>
+<tr>
+<td><code>=_</code></td>
+<td>Overlaps</td>
+</tr>
+<tr>
+<td><code>-=\|</code></td>
+<td>Finished By</td>
+</tr>
+<tr>
+<td><code>-=-</code></td>
+<td>Contains</td>
+</tr>
+<tr>
+<td><code>=&gt;_</code></td>
+<td>Starts</td>
+</tr>
+<tr>
+<td><code>=</code></td>
+<td>Equals</td>
+</tr>
+<tr>
+<td><code>=&gt;-</code></td>
+<td>Started By</td>
+</tr>
+<tr>
+<td><code>_=_</code></td>
+<td>During</td>
+</tr>
+<tr>
+<td><code>_=\|</code></td>
+<td>Finishes</td>
+</tr>
+<tr>
+<td><code>_=-</code></td>
+<td>Overlappped By</td>
+</tr>
+<tr>
+<td><code>\|-&gt;</code></td>
+<td>Met By</td>
+</tr>
+<tr>
+<td><code>&lt;-</code></td>
+<td>Preceded By</td>
+</tr>
+<tr>
+<td><code>/=</code></td>
+<td>Precedes, Meets, Met By, Preceded By</td>
+</tr>
+<tr>
+<td><code>~</code></td>
+<td>Overlaps, Finished By, Contains, Starts, Equals, Started By, During, Finishes, Overlapped By</td>
+</tr>
+<tr>
+<td><code>~&gt;</code></td>
+<td>Precedes, Meets, Overlaps</td>
+</tr>
+<tr>
+<td><code>&lt;~</code></td>
+<td>Preceded By, Met By, Overlapped By</td>
+</tr>
+</tbody>
+</table>
+<h3 id="querying">Querying</h3>
+<p>To print the current relations between two events, you can use the <code>query</code> statement.
+The syntax is as follows:</p>
+<pre><code>query &lt;event1&gt;, &lt;event2&gt;</code></pre>
+<p>So for example, to see when bob’s wire task was relative to the button being
+pushed, the following code can be used:</p>
+<pre><code>query bob.wires, #button</code></pre>
+<h3 id="name-mangling">Name Mangling</h3>
+<p>Event names use name mangling in order to distinguish between different events,
+even if they have the same name. For example, in a game one player may do one
+task on two separate occasions, such as if they were interrupted by a button push.</p>
+<p>To get around this, you can divide your statements with <code>---</code> so that all event<br />
+names above the line are different than all event names at the bottom even if you
+give them the exact same name. Consider the following example:</p>
+<pre><code>list bob wires medical trash #button
+
+---
+
+list bob trash admin #button</code></pre>
+<p>Both <code>trash</code> and <code>#button</code> are treated differently even though they are given
+the same name. To reference an event from a different section, you can add <code>+</code>
+or <code>-</code> to the end of the event name to reference the below and above events
+respectively. Consider:</p>
+<pre><code>list bob wires medical trash+ #button
+
+--- 
+
+list bob #button- trash admin #button</code></pre>
+<p>Now the <code>trash+</code> in the first section actually refers to the <code>trash</code> event in
+the second section, and the <code>#button-</code> in the second section actually refers
+to the <code>#button</code> in the first section.</p>
+<h3 id="inconsistency-detection">Inconsistency Detection</h3>
+<p>If someone is not a good liar, they may make mistakes in how they tell their alibi.
+For example, they may lay out a series of events that is not even logically
+possible to occur. The most basic example of this is stating that you were in the same
+room as another person when they claim you were not. In code, this would be
+expressed as the following:</p>
+<pre><code>list bob admin wires electrical medbay #button
+list alice wires admin medbay #button
+
+set bob.wires = alice.wires
+set bob.medbay /= alice.medbay
+
+set bob.medbay = alice.medbay</code></pre>
+<p>Notice how there are two statements that contradict each other: one of them
+states that bob and alice completed the medbay task at the same time, and the
+other claims that they didn’t. The interpreter can identify this inconsistency
+and prints all the related information to it:</p>
+<pre><code>[*] --== INCONSISTENCY ==-- [*]
+
+Relevant Events:
+ - bob.medbay0
+ - alice.medbay0
+
+Affected Events:
+ - bob.admin0
+ - bob.wires0
+ - bob.electrical0
+ - bob.medbay0
+ - #button0
+ - alice.wires0
+ - alice.admin0
+ - alice.medbay0
+
+[*] --== INCONSISTENCY ==-- [*]
+
+Inconsistency detected when attempting to run the command:
+amogus.exe: set bob.medbay0 [Equals] alice.medbay0</code></pre>
+<p>This prints out all events that are related to the consistency, and the
+statement that caused the inconsisteny. This is obviously a very simple example,
+but for larger scenarios it becomes increasingly more difficult to keep track
+of this, leading to the creation of this DSL.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

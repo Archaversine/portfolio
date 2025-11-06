@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - Megastar - Turing Complete Esoteric Language</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Megastar - Turing Complete Esoteric Language</h1>
+            <article>
+    <section class="header">
+        Posted on September 22, 2023
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>An interpreter for C* written in Haskell using Megaparsec.</p>
+<p>This is the third iteration of this project, which provides a compiled
+interpreter to provide a faster runtime with some extra new language features.</p>
+<p>Currently, there is no REPL for this interpreter <em>yet</em>. One will be added soon.</p>
+<h2 id="documentation">Documentation</h2>
+<h3 id="the-tape">The Tape</h3>
+<p>Unless specified, the program begins with a ‘tape’ of 1 byte that can have a
+value ranging from 0-255 initialized to 0, starting at the first byte of
+the tape. If the default tape is not sufficent for a program, it can be reset
+in the following ways:</p>
+<p>Initializing tape to a size of three all initialized to 0:</p>
+<pre><code># 0 0 0</code></pre>
+<p>Initializing tape to ASCII values of “Hello, World!”:</p>
+<pre><code># 72 101 108 108 111 44 32 87 111 114 108 100 33</code></pre>
+<p>Initializing tape to ASCII values of “Hello, World!” with a newline via string
+notation:</p>
+<pre><code>#string &quot;Hello, World!&quot;</code></pre>
+<p>Initializing the tape to the contents of a file (Not finished):</p>
+<pre><code>#file &lt;hello_world.txt&gt;</code></pre>
+<h3 id="modifying-the-current-position">Modifying the Current Position</h3>
+<p>By default, the tape position is set to 0, which is the left-most or first
+value of the tape. To change the position of the tape, the following symbols
+can be used:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-&gt;</code></td>
+<td>Increase the tape’s position by 1 (move right 1).</td>
+</tr>
+<tr>
+<td><code>&lt;-</code></td>
+<td>Decrease the tape’s position by 1 (move left 1).</td>
+</tr>
+<tr>
+<td><code>&gt;&gt;</code></td>
+<td>Set the tape’s position to the end of the tape (right-most value).</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;</code></td>
+<td>Set the tape’s position to the beginning of the tape (left-most value).</td>
+</tr>
+<tr>
+<td><code>*&gt;</code></td>
+<td>Circularly increase by 1 (move to beginning if at end).</td>
+</tr>
+<tr>
+<td><code>&lt;*</code></td>
+<td>Circularly decrease by 1 (move to end if at beginning).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="modifying-the-current-cells-value">Modifying the Current Cell’s Value</h3>
+<p>There are three basic operations that can modify the value of the selected cell
+on the tape:</p>
+<h4 id="increase-value">[<code>+</code>] Increase Value</h4>
+<p>Using + followed by a number will increase the cell’s value by that amount.
+If the result exceeds 255 or 0xff, an overflow will occur.</p>
+<p>Increase cell value by 1:</p>
+<pre><code>+1</code></pre>
+<h4 id="decrease-value">[<code>-</code>] Decrease Value</h4>
+<p>Using - followed by a number will decrease the cell’s value by that amount.
+If the result exceeds 0 or an underflow will occur.</p>
+<p>Decrease cell value by 1:</p>
+<pre><code>-1</code></pre>
+<h4 id="override-value">[<code>~</code>] Override Value</h4>
+<p>Using <code>~</code> followed by a number will override the cell’s current value to the
+specified amount. If the value is not in the range 0-255 then an overflow will
+occurr.</p>
+<p>Set the cell’s value to 8:</p>
+<pre><code>~8</code></pre>
+<h3 id="io-operations">IO Operations</h3>
+<p>Input and Output Operations</p>
+<p>Input and Output in C* is done char-by-char unless the program specifies to
+read a number. Below are the IO operations:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>=&gt;</code></td>
+<td>Read a char from either the user or the char buffer</td>
+</tr>
+<tr>
+<td><code>&lt;=</code></td>
+<td>Convert the current cell’s value into an ASCII character and display it to the screen.</td>
+</tr>
+<tr>
+<td><code>%&gt;</code></td>
+<td>Read an integer from the user (does not read from the char buffer)</td>
+</tr>
+<tr>
+<td><code>&lt;%</code></td>
+<td>Display the current cell’s value as an integer.</td>
+</tr>
+<tr>
+<td><code>&lt;&gt;</code></td>
+<td>Shorthand for <code>&lt;= -&gt;</code>.</td>
+</tr>
+<tr>
+<td><code>&lt;%&gt;</code></td>
+<td>Shorthand for <code>&lt;% -&gt;</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="control-flow">Control Flow</h3>
+<h4 id="basic-loops">Basic Loops</h4>
+<p>It is sometimes difficult to write the same sequence of symbols over and over
+again, and greatly increases the risk of bugs and errors. To combat this, a
+loop using <code>[]</code> can be used.</p>
+<p>The syntax for a loop is as follows:</p>
+<pre><code>[iterations](... code ...)</code></pre>
+<p>If the code of the loop consists of only one operator, then parentheses are not
+needed. For example:</p>
+<pre><code>[3]+1</code></pre>
+<p>Because of this, loops can be chained together:</p>
+<pre><code>[5][4][2](+1 -&gt;)</code></pre>
+<p>To make a loop run for the number of cells there are in the tape (i.e. there
+are k cells so the loop runs k times), the number of iterations can be left
+blank:</p>
+<pre><code>[]+1</code></pre>
+<p>Sometimes, it is helpful to run a loop (k - 1) times, where k is the length of
+the tape. This can be used by specifying a negative number of iterations:</p>
+<pre><code>[-1](+1 -&gt;)</code></pre>
+<h4 id="rolling-loops">Rolling Loops</h4>
+<p>In order to apply an operation to every item on the tape using standard loops,
+the following pattern emerges:</p>
+<pre><code>[-1](OPERATION -&gt;) OPERATION</code></pre>
+<p>Note that in the above pattern, <code>OPERATION</code> is written twice, because there is
+no way for a standard element to traverse every element without skipping one.
+To solve this pattern, a rolling loop can be used.</p>
+<p>Syntax:</p>
+<pre><code>{iterations}(... code ...)</code></pre>
+<p><code>{i}(OPERATION)</code> is the same as <code>[k](OPERATION)</code>, where k = i - 1.</p>
+<p>The positive, negative, and empty iteration syntax that applies to the standard
+loop applies to this as well. Parentheses are also optional for single operator
+statements. So to rewrite the pattern from above:</p>
+<pre><code>{}(OPERATION)</code></pre>
+<p>For other iterations, the same behavior still holds. Consider a tape of the
+values <code>[0, 0, 0, 0]</code>. To add one to the first three elements, with a final
+position on the third value, the following code can be used:</p>
+<pre><code>{3}+1</code></pre>
+<h4 id="conditional-operators">Conditional Operators</h4>
+<p>There are four additional operators that can be used to control the flow of
+code. They follow the same parentheses properties as the loops:</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>?</code></td>
+<td>Runs as long as the current cell does not have a value of 0.</td>
+</tr>
+<tr>
+<td><code>!?</code></td>
+<td>Runs as long as the current cell has a value of 0.</td>
+</tr>
+<tr>
+<td><code>??</code></td>
+<td>Runs <strong>once</strong> if the current cell does not have a value of 0.</td>
+</tr>
+<tr>
+<td><code>!??</code></td>
+<td>Runs <strong>once</strong> of the current cell has a value of 0.</td>
+</tr>
+</tbody>
+</table>
+<p>The following code will decrement the current cell’s value until it is equal to
+0:</p>
+<pre><code>?-1</code></pre>
+<p>The following code decrements the current cell’s value and increments it’s
+right neighbor until it is equal to 0:</p>
+<pre><code>?(-1 -&gt; +1 &lt;-)</code></pre>
+<p>The following code will set the cell’s current value to 1 if it has a nonzero
+value:</p>
+<pre><code>??~1</code></pre>
+<h4 id="bookmarks">Bookmarks</h4>
+<p>Cell’s can be ‘bookmarked’ to travel to them easier. The syntax is as follows:</p>
+<pre><code>@name
+^name</code></pre>
+<p>The first line will set the bookmark, and the second line will set the tape
+position to the bookmarked cell.</p>
+<p>The following code will bookmark the current cell as <code>begin</code>, travel right until
+it reaches a zero value, bookmark that cell as <code>end</code>,
+then jump back to <code>begin</code>:</p>
+<pre><code>@begin ?(-&gt;) @end ^begin</code></pre>
+<h3 id="variables">Variables</h3>
+<p>Values can be stored outside the tape for convenience and referenced in other
+calculations. Variables can be created with the following syntax:</p>
+<pre><code>x := 1</code></pre>
+<p>To use x as a value, the <code>$</code> operator can be used. For example, here’s how to
+increment the current cell by <code>x</code>:</p>
+<pre><code>+$x</code></pre>
+<p>The values of variables can be mutated as well, either by re-assigning again
+or by incrementing/decrementing the value:</p>
+<pre><code>x += 1 
+x -= 1</code></pre>
+<h3 id="functions">Functions</h3>
+<p>If a piece of code is used over and over again but not in the same spot, or you need to nest parenthesis, then a function should be used.
+Functions are defined with the syntax:</p>
+<pre><code>&amp;func_name(... code ...)</code></pre>
+<p>To call a function, simply add an <code>*</code> before the function name, like so:</p>
+<pre><code>*func_name</code></pre>
+<p>Sometimes, It is helpful to pass parameters to functions to further reduce the
+amount of code that needs to be written. Functions can have any number of
+parameters, and functions with the sme name and different number of parameters
+can be written. For example, here are two functions named <code>add</code>, that perform
+different operations depending on the number of parametesr they are given:</p>
+<pre><code>&amp;add&lt;a, b&gt;(+$a +$b)
+&amp;add&lt;a&gt;(+$a)</code></pre>
+<p>These functions can still be called with the <code>*</code> operator:</p>
+<pre><code>*add&lt;1, 2&gt;
+*add&lt;3&gt;</code></pre>
+<p>Note that in the function definition, the parameters were access with the <code>$</code>
+operator, as if they were variables. This is because that once a function is
+called, a new stack of variables is created with the function parameters
+reated as variables. This temporarily overrides any variables with the same
+name until the function has finished executing.</p>
+<h3 id="numerical-operations">Numerical Operations</h3>
+<p>To assist with the manipulation of numerical values, there are a fiew operators
+specifically designed for this purpose.</p>
+<h4 id="bookmark-lookup">Bookmark Lookup</h4>
+<p>It is possible to load the value of a cell that has been bookmarked using the
+<code>^^</code> operator. For example, this can be used to clone the value of a cell to
+the next cell over.</p>
+<pre><code>@location -&gt; ~^^location</code></pre>
+<h4 id="char-representation">Char Representation</h4>
+<p>It is also possible to convert a char to it’s numerical representation by
+surrounding it in single quotes. For example,</p>
+<pre><code>myChar := 'M'</code></pre>
+<h4 id="normalization">Normalization</h4>
+<p>Numbers can be normalized by converting them to their boolean representation.
+A 0 represents a false value, and a 1 represents a true value. The syntax is
+simple:</p>
+<pre><code>|4|</code></pre>
+<p>Where <code>4</code> can be replaced with any numerical expression.</p>
+<h4 id="folding-operators">Folding Operators</h4>
+<p>There are a few folding operations that can be performed to fold a list of
+given numbers. These are the following:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{+\|...}</code></td>
+<td>Add all elements together.</td>
+</tr>
+<tr>
+<td><code>{-\|...}</code></td>
+<td>Subtract all elements, left associative.</td>
+</tr>
+<tr>
+<td><code>{&amp;\|...}</code></td>
+<td>Normalize all elements and perform a logical AND operation on them.</td>
+</tr>
+<tr>
+<td><code>{o\|...}</code></td>
+<td>Normalize all elements and perform a logical OR operation on them.</td>
+</tr>
+<tr>
+<td><code>{x\|...}</code></td>
+<td>Normalize all elements and perform a logical XOR operation on them.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>...</code> for each symbol represents a list of numerical expression separated
+by a comma. For example, to add three numbers together, the syntax would be as
+follows:</p>
+<pre><code>result := {+|1,2,3}</code></pre>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

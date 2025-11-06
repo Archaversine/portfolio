@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - Horcrux - Unbreakable File Encryption</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Horcrux - Unbreakable File Encryption</h1>
+            <article>
+    <section class="header">
+        Posted on December 21, 2022
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>Protect your files by splitting their souls.</p>
+<h2 id="horcruxes">Horcruxes</h2>
+<p>A horcrux is a file that contains a fraction of the information of another file,
+similar to how horcruxes in Harry Potter contain split pieces of a soul to
+protect it. It is not possible to tell if a file is a horcrux of another file or
+not, and the horcrux itself does not contain any information about other
+horcruxes to the same file or any information about even if either of those
+things exist. The information that each horcrux holds is essentially random
+bytes, so none of the data from the original file can be recovered. Even 99 out
+of 100 horcruxes combined will not yield any information about the original
+file; all horcruxes must be present to merge to the original file. The data a
+horcrux holds is only meaningful if all the other pieces are present.</p>
+<h2 id="splitting-algorithm-encryption">Splitting Algorithm (Encryption)</h2>
+<p>At it’s core, encryption and decryption calculations revolve around the use of
+XOR. When a file is split, securely random bytes are generated in a way such
+that when they are combined together via the use of XOR it will yield the
+decrypted file.</p>
+<p>For example, assume the file <code>passwords.txt</code> is going to be split into <code>1.hcx</code>,
+<code>2.hcx</code>, and <code>3.hcx</code>. For each byte in <code>passwords.txt</code>, two random bytes are
+generated and placed into <code>1.hcx</code> and <code>2.hcx</code> respectively. The byte for <code>3.hcx</code>
+is calculated by XORing all random bytes with the original byte</p>
+<p>In pseudocode:</p>
+<pre><code>third_byte = original_byte XOR first_rand_byte XOR second_rand_byte</code></pre>
+<h2 id="merging-algorithm-decryption">Merging Algorithm (Decryption)</h2>
+<p>To merge files together, the process is even easier. To recover the original
+file from it’s ‘horcruxes’, the program goes through every byte in each horcrux
+and XORs them all together. For example, to recover the file <code>passwords.txt</code>
+from its horcruxes <code>1.hcx</code>, <code>2.hcx</code>, and <code>3.hcx</code>, the first byte of
+<code>passwords.txt</code> would be equal to the first byte of <code>1.hcx</code> XOR <code>2.hcx</code> XOR
+<code>3.hcx</code>.</p>
+<p>In pseudocode:</p>
+<pre><code>original_byte = byte_from_1hcx XOR byte_from_2hcx XOR byte_from_3hcx</code></pre>
+<h2 id="comparison-algorithm">Comparison Algorithm</h2>
+<p>Since horcruxes are generated with purely random numbers, there is an
+astronomically low chance that a significantly large portion of the original
+data will be in one of the split components. To put into perspective how low of
+a chance this is of occuring, a file with three bytes has a 1 in 16,777,216
+chance of all three bytes not being encrypted and a 1 in 65,281 chance of two of
+the bytes not being encrypted. As more bytes are added to the file the chances
+of data being leaked from the original exponentially decreases. In order to
+verify that there isn’t a significant amount of information leaked from the
+original, a comparison algorithm was added. This checks multiple files, and
+returns a percentage of the similarity between the files.</p>
+<p>In pseudocode, the percentage of the similarity is calculated with the following:</p>
+<pre><code>percentage = number_of_identical_bytes / total_number_of_bytes</code></pre>
+<h2 id="splitting-with-lockets-advanced-encryption">Splitting with Lockets (Advanced Encryption)</h2>
+<p>To create a horcrux that is compatible with multiple files, A ‘locket’ with the
+same size as the largest input file is generated. After this locket is
+generated, each input file is individually merged with it. If a file is shorter
+than the locket, then the extra bytes of it are not used for merging (This is
+the default behavior for merging in general). The output files will each be
+horcruxes that can be merged with the locket to recover it’s original file. Of
+course, both the locket and the horcruxes and be split or merged even more.</p>
+<h2 id="command-line-usage">Command Line Usage</h2>
+<pre><code>usage: horcrux [-h] [-L LOCKET] [-o [OUTPUT ...]] [-c CHUNK_SIZE] [-p PARTS] [-n NOISE] {split,merge,locket,compare} [inputs ...]
+
+Protect your files by splitting their souls.
+
+positional arguments:
+  {split,merge,locket,compare}
+                        Action to perform.
+  inputs
+
+options:
+  -h, --help            show this help message and exit
+  -L LOCKET, --locket LOCKET
+                        Filename of locket horcrux.
+  -o [OUTPUT ...], --output [OUTPUT ...]
+                        Names of output files.
+  -c CHUNK_SIZE, --chunk-size CHUNK_SIZE
+                        1M Default. How many bytes to load into RAM per file. Use K, M, G for more units or no unit for bytes.
+  -p PARTS, --parts PARTS
+                        How many parts to split into.
+  -n NOISE, --noise NOISE
+                        Default: 0. Max amount of extra bytes to generate for horcruxes after splitting. Use K, M, G for more units or no unit for bytes.</code></pre>
+<p>Note that on the above usage section, <code>[inputs ...]</code> is listed after all the
+command flags. This is due to how the <code>argparse</code> library prints usage. When
+using the horcrux command, inputs must be specified <em>before</em> flags.</p>
+<p>On windows, the program can be run with the <code>python</code> or <code>python3</code> command. This
+can also be done on linux, or <code>horcrux.py</code> can be placed in a folder in the PATH
+variable with execution permissions and used directly as a command.</p>
+<h2 id="splitting-files-encryption">Splitting Files (Encryption)</h2>
+<p>To split a file into any number of parts, use the following syntax:</p>
+<pre><code>horcrux split &lt;fileToSplit&gt; &lt;part1&gt; &lt;part2&gt; [&lt;part3&gt; ...]</code></pre>
+<p>The file will be split into however many output files are specified. So if five
+filenames are specified, then it will be split into five parts. (NOTE: At least
+two output files are needed to split).</p>
+<p>Note that for merging, <em>ALL</em> parts of a file are required for merging. If a file
+is split into 100 horcruxes and one horcrux is missing, the original data
+<em>CANNOT</em> be recovered.</p>
+<p>The name or file extension of the horcruxes (output files) does not matter, they
+will appear as corrupted files either way.</p>
+<h2 id="merging-horcruxes-decryption">Merging Horcruxes (Decryption)</h2>
+<p>To merge horcruxes into their original file, use the following syntax:</p>
+<pre><code>horcrux merge &lt;part1&gt; &lt;part2&gt; [&lt;part3&gt; ...] &lt;outputFile&gt;</code></pre>
+<p>The horcruxes will be merged into a single file whether or not they will created
+a decrypted file. If the horcruxes vary in size, the merging algorithm will use
+the size of the smallest horcrux. Since there’s no way to confirm if a file is a
+horcrux, the merge algorithm can be applied to any list of files.</p>
+<h2 id="lockets">Lockets</h2>
+<p>Different Files can share horcruxes that hold the information to both of them.
+For example, the horcrux <code>a.hcx</code> merged with the horcrux <code>k.hcx</code> may yield an
+decrypted file, and the completely different horcrux <code>b.hcx</code> merged with the
+same horcrux <code>k.hcx</code> may yield a completely different decrypted file.</p>
+<p>This can be done by generated a special horcrux that is used in the calculations
+for splitting multiple differnet files to get their other halves. While this
+horcrux is able to decrypt multiple things, it still is fundamentally the same
+and indistinguishable from a regular horcrux.</p>
+<p>To split multiple files at once with a shared horcrux, use the following syntax:</p>
+<pre><code>horcrux locket &lt;file1&gt; [&lt;file2&gt; ...] --locket &lt;locketFileName&gt;</code></pre>
+<p>If you want to specify specific output names, use the following:</p>
+<pre><code>horcrux locket &lt;file1&gt; [&lt;file2&gt; ...] --output [output1 output2 ...] --locket &lt;locketFileName&gt;</code></pre>
+<h3 id="example">Example</h3>
+<p>To Encrypt the files <code>a.txt</code>, <code>b.txt</code>, and <code>c.txt</code> with a locket <code>locket.hcx</code>:</p>
+<pre><code>horcrux locket a.txt b.txt c.txt --locket locket.hcx</code></pre>
+<p>This will generate the horcruxes: <code>a.txt.hcx</code>, <code>b.txt.hcx</code>, and <code>c.txt.hcx</code>.</p>
+<p>The file extension of the horcruxes does not matter. To use specific outupts
+instead of auto generated ones the above example would be changed into:</p>
+<pre><code>horcrux locket a.txt b.txt c.txt --locket locket.hcx --output Ahorcrux.bin Bhorcrux.bin</code></pre>
+<p>Note that in the above example an output name for <code>c.txt</code> is not specified, so
+the name <code>c.txt.hcx</code> will be used.</p>
+<h2 id="comparing-files">Comparing Files</h2>
+<p>To view the similarity between two files, use the following syntax:</p>
+<pre><code>horcrux compare &lt;fileToCompare&gt; &lt;file1&gt; [&lt;file2&gt; ...]</code></pre>
+<p>The above command will show the percent similarity between <code>fileToCompare</code> and
+all the other files. Note that all other files won’t be compared with each
+other, only <code>fileToCompare</code> and the other files.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

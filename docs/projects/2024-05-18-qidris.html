@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - QIdris - A Quantum Computer Simulator in Idris</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>QIdris - A Quantum Computer Simulator in Idris</h1>
+            <article>
+    <section class="header">
+        Posted on May 18, 2024
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <h1 id="qidris">QIdris</h1>
+<p>A Quantum simulator built in Idris 2.</p>
+<h2 id="description">Description</h2>
+<p>This project is a quantum simulator built in Idris 2. It is a work in progress and is not yet complete. The goal is to build a quantum simulator that can simulate quantum circuits and quantum algorithms with type safety via quantitative type theory.</p>
+<h2 id="documentation">Documentation</h2>
+<p>The documentation for this project can be found <a href="https://archaversine.github.io/QIdris/">here</a></p>
+<h2 id="example">Example</h2>
+<p>Small examples can be found <a href="https://github.com/Archaversine/QIdris/blob/main/src/Examples.idr">here</a></p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode idris"><code class="sourceCode idris"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Define a quantum program that takes in a circuit of 2 qubits</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- 2 qubits = 4 possible states</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- The input matrix is a linear type to prevent copy bugs</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">prog</span> <span class="ot">:</span> <span class="dt">QCircuit</span> <span class="dv">4</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>prog initial <span class="fu">=</span> <span class="kw">do</span> </span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> result <span class="fu">=</span> initial</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>          <span class="fu">|&gt;</span> (<span class="dt">H</span> <span class="fu">&gt;&lt;</span> <span class="dt">ID</span>) <span class="co">-- Put the first qubit in superposition (and identity on second)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>          <span class="fu">|&gt;</span> <span class="dt">CNOT</span>      <span class="co">-- If the first bit is true, flip the second bit (entangles the two bits)</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Return the final state</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    finish result</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="fu">main</span> <span class="ot">:</span> <span class="dt">IO</span> ()</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>main <span class="fu">=</span> <span class="kw">do</span> </span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Create initial state (both bits set to 0 by default)</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> initial <span class="fu">=</span> zero <span class="fu">&gt;&lt;</span> zero</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    result <span class="ot">&lt;-</span> runCircuit initial prog</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> probs  <span class="fu">=</span> result <span class="fu">*</span> result <span class="co">-- Square state vec to get probabilities</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Print the probabilities of each state</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    putStrLn <span class="st">&quot;Probabilities: &quot;</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    putStrLn <span class="st">&quot;-------------------&quot;</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    printStateVec result</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    printStateVec probs</span></code></pre></div>
+<h3 id="explanation">Explanation</h3>
+<p>The above code defines a quantum program that takes in a quantum circuit of 2 qubits and returns a quantum circuit of 2 qubits. The program puts the first qubit in superposition, then entangles the two qubits by flipping the second qubit if the first qubit is true. The probabilities of each state are then printed. It is equivalent to the following quantum circuit:</p>
+<figure>
+<img src="https://raw.githubusercontent.com/Archaversine/QIdris/main/circuit.png" alt="Quantum Circuit" />
+<figcaption aria-hidden="true">Quantum Circuit</figcaption>
+</figure>
+<h3 id="output">Output</h3>
+<pre><code>Probabilities: 
+-------------------
+|00&gt; : [0.7071067811865475]
+|01&gt; : [0.0]
+|10&gt; : [0.0]
+|11&gt; : [0.7071067811865475]
+
+|00&gt; : [0.4999999999999999]
+|01&gt; : [0.0]
+|10&gt; : [0.0]
+|11&gt; : [0.4999999999999999]</code></pre>
+<p>Here, the output shows that the result of the quantum program is a superposition of the states |00&gt; and |11&gt; with equal probabilities.</p>
+<h2 id="composition-of-quantum-circuits">Composition of Quantum Circuits</h2>
+<p>One problem with quantum computing in general is that it’s difficult to abstract actions on qubits. In this implementation,
+Quantum Circuits are represented as monads, which allows for easy composition of quantum circuits. For example, let’s define a custom
+operation that applies the hadamard to the first qubit and applies the controlled NOT gate to the second qubit:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode idris"><code class="sourceCode idris"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">myOperation</span> <span class="ot">:</span> (<span class="dv">1</span> q <span class="ot">:</span> <span class="dt">QSystem</span> <span class="dv">4</span>) <span class="ot">-&gt;</span> <span class="dt">QSystem</span> <span class="dv">4</span> </span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>myOperation initial <span class="fu">=</span> initial <span class="fu">|&gt;</span> (<span class="dt">H</span> <span class="fu">&gt;&lt;</span> <span class="dt">ID</span>) <span class="fu">|&gt;</span> <span class="dt">CNOT</span></span></code></pre></div>
+<p>Now, let’s define a custom operation which performs the previously defined operation twice:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode idris"><code class="sourceCode idris"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">myOperation</span> <span class="ot">:</span> (<span class="dv">1</span> q <span class="ot">:</span> <span class="dt">QSystem</span> <span class="dv">4</span>) <span class="ot">-&gt;</span> <span class="dt">QSystem</span> <span class="dv">4</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>myOperation initial <span class="fu">=</span> initial <span class="fu">|&gt;</span> (<span class="dt">H</span> <span class="fu">&gt;&lt;</span> <span class="dt">ID</span>) <span class="fu">|&gt;</span> <span class="dt">CNOT</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="fu">myOperationTwice</span> <span class="ot">:</span> (<span class="dv">1</span> q <span class="ot">:</span> <span class="dt">QSystem</span> <span class="dv">4</span>) <span class="ot">-&gt;</span> <span class="dt">QSystem</span> <span class="dv">4</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>myOperationTwice <span class="fu">=</span> myOperation <span class="fu">.</span> myOperation</span></code></pre></div>
+<p>(NOTE: <code>Data.Linear</code> needs to be imported for function composition not throw a type error).</p>
+<p>It’s important to note that because the operations were defined as pure functions operating on quantum systems,
+they cannot non-deterministically measure the qubits. If you want compositions of quantum operations that can measure
+qubits, you can use the monadic bind operator to combine these operations. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode idris"><code class="sourceCode idris"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">myOperation</span> <span class="ot">:</span> <span class="dt">QCircuit</span> <span class="dv">4</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>myOperation initial <span class="fu">=</span> measure (initial <span class="fu">|&gt;</span> (<span class="dt">H</span> <span class="fu">&gt;&lt;</span> <span class="dt">ID</span>) <span class="fu">|&gt;</span> <span class="dt">CNOT</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="fu">myOperationTwice</span> <span class="ot">:</span> <span class="dt">QCircuit</span> <span class="dv">4</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>myOperationTwice initial <span class="fu">=</span> myOperation initial <span class="fu">&gt;&gt;=</span> myOperation</span></code></pre></div>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

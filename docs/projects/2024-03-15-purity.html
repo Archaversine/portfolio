@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - Purity - Purely Functional Terminal Shell</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Purity - Purely Functional Terminal Shell</h1>
+            <article>
+    <section class="header">
+        Posted on March 15, 2024
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>A purely functional terminal shell for general purpose usage and scripting.</p>
+<figure>
+<img src="https://raw.githubusercontent.com/Archaversine/purity/refs/heads/main/pictures/preview.png" alt="Purity Preview" />
+<figcaption aria-hidden="true">Purity Preview</figcaption>
+</figure>
+<h2 id="compilation-and-installation">Compilation and Installation</h2>
+<p>To build this project you will need <a href="https://www.haskell.org/cabal/">Cabal</a>
+installed on your system with GHC version 9.4.7.</p>
+<p>To compile the project, clone the repo and run the <code>cabal build</code> command inside
+the it.</p>
+<p>Create a directory in your home directory called <code>.purity</code> and copy the <code>Config.hs</code>,
+<code>User.hs</code>, and <code>Builtin.hs</code> files from the repo to the newly created directory.</p>
+<p>After this, you may take the <code>purity</code> executable generated from the build command,
+and place to somewhere in your <code>PATH</code> environment variable. The application should
+now function properly. Note that on Windows systems, you may need to edit the
+<code>Config.hs</code> files to remove any unicode characters that may cause issues.</p>
+<h2 id="configuration">Configuration</h2>
+<p>Purity offers two different files for configuration: <code>Config.hs</code> and <code>User.hs</code>.
+Both files are configured with the <a href="https://www.haskell.org/">Haskell Programming Language</a>.</p>
+<p><code>Config.hs</code> is the configuration file for the shell itself. All definitions will
+automatically be imported into the shell’s environment as a qualified import
+under <code>Config</code>. Any values defined in the <code>Config.hs</code> script should not be
+deleted as their absence can prevent the shell from starting successfully.</p>
+<p><code>User.hs</code> is the configuration for the user themselves. Definitions in this file
+are not required by the shell and may be modified to the user’s preference. This
+file serves as a way to define aliases, functions, and other user-specific
+settings. All definitions will be automatically imported to the shell upon
+startup.</p>
+<h2 id="code-mode">Code Mode</h2>
+<p>The shell has two modes: Command and Code mode. Code mode is a much stricter
+variant of command mode, in that it only allows for proper Haskell code to be
+executed. For example, assuming there is an <code>echo :: String -&gt; IO ()</code> function
+in scope, <code>echo Hello, World!</code> will cause an error as opposed to <code>echo "Hello, World!"</code>.
+(Both work in Command mode).</p>
+<p>Code mode is not enabled by default on the shell. To switch to it, use the <code>#mode code</code>
+directive. You can also use the backslash character to toggle between modes</p>
+<h2 id="command-mode">Command Mode</h2>
+<p>This is the default mode of the shell. It allows for the execution of commands
+and Haskell code. It does this by attempting to auto-format the input into an
+acceptable Haskell expression. For example, <code>randomCmd input output "my text" 'MyValue 3</code>
+would be reformatted as <code>randomCmd "input" "output" "my text" MyValue 3</code>. This, however,
+has its drawbacks as expressions such as <code>1 + succ 2</code> are no longer valid since
+they will be reformatted to <code>1 + "succ" 2</code>, which yeilds a type error. To get
+around this, Purity will attempt to run it as an unformatted Haskell expression
+upon failure, and will attempt to run it as an external command if that fails.</p>
+<p>In summary:</p>
+<ol type="1">
+<li>Attempt to format the input to a valid Haskell expression.</li>
+<li>If unsuccessful, attempt to run the input as an unformatted Haskell expression.</li>
+<li>If unsuccessful, attempt to run the input as an external command.</li>
+<li>Display the error message as if it were a formatted Haskell expression.</li>
+</ol>
+<p>This mode is enabled by default on the shell and can be switched to using the
+<code>#mode cmd</code> directive.</p>
+<h2 id="directives">Directives</h2>
+<p>To add further functionality, Purity offers a set of directives that are persistent
+between shell modes. These directives are as follows:</p>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 41%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr>
+<th>Directive</th>
+<th>Alias (if any)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>#quit</code></td>
+<td><code>:q</code></td>
+<td>Exits the shell.</td>
+</tr>
+<tr>
+<td><code>#purge</code></td>
+<td></td>
+<td>Removes all imports and definitions.</td>
+</tr>
+<tr>
+<td><code>#mode</code></td>
+<td></td>
+<td>Switches between Command (<code>cmd</code>) and Code (<code>code</code>) mode.</td>
+</tr>
+<tr>
+<td><code>#import</code></td>
+<td></td>
+<td>Imports a module. (e.g. <code>#import Data.List</code>).</td>
+</tr>
+<tr>
+<td><code>#importQ</code></td>
+<td></td>
+<td>Imports a module qualified. (e.g. <code>#importQ Data.List:L</code>).</td>
+</tr>
+<tr>
+<td><code>#type</code></td>
+<td><code>:t</code></td>
+<td>Shows the type of an expression.</td>
+</tr>
+<tr>
+<td><code>#kind</code></td>
+<td><code>:k</code></td>
+<td>Shows the kind of an expression.</td>
+</tr>
+<tr>
+<td><code>#source</code></td>
+<td></td>
+<td>Run a file as a script.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="scripting">Scripting</h2>
+<p>Purity allows for the execution of scripts using the <code>#source</code> directive. This
+directive takes a file path as an argument and runs the file as a script (multiple are supported).
+The file is run in the same environment as the shell, meaning that any definitions
+made in the file will be available to the shell after the script has finished
+running.</p>
+<h3 id="code-blocks">Code Blocks</h3>
+<p>There are times where multiple lines are neater to use than a single line. For
+this, Purity offers code blocks. These are defined with triple backticks.</p>
+<p>For example:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- This will run as a singular expression</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">```</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ot">let fib 0 = 0 </span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ot">    fib 1 = 1 </span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ot">    fib n = fib (n - 1) + fib (n - 2)</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ot">```</span></span></code></pre></div>
+<p>Code blocks are also supported in the shell itself.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
