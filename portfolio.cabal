@@ -5,7 +5,7 @@ cabal-version:      >= 1.10
 
 executable site
   main-is:          site.hs
-  build-depends:    base   >= 4.20.2 && < 4.21
+  build-depends:    base   >= 4.20.0 && < 4.21
                   , hakyll >= 4.16.7 && < 4.17
                   , pandoc >= 3.8    && < 3.9
 

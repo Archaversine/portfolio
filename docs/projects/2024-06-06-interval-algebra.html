@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - Allen's Interval Algebra</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Allen's Interval Algebra</h1>
+            <article>
+    <section class="header">
+        Posted on June  6, 2024
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>An Implementation of Allen’s Interval Algebra in Haskell.</p>
+<p>This library provides a monadic way to perform computations related to Allen’s
+interval algebra. The interval network strucutre is implicitly updated upon
+the creation of a new interval and when a set of relations is applied to two
+intervals.</p>
+<p><a href="https://github.com/Archaversine/allen">Repo available here</a></p>
+<h2 id="sources">Sources</h2>
+<p>This library is based off of the interval algebra described in
+<a href="https://cse.unl.edu/~choueiry/Documents/Allen-CACM1983.pdf">Maintaining Knowledge about Temporal Intervals</a>,
+and <a href="https://www.ics.uci.edu/~alspaugh/cls/shr/allen.html">Allen’s Interval Algebra</a>.</p>
+<h2 id="examples">Examples</h2>
+<h3 id="a-simple-example">A Simple Example</h3>
+<p>Assume a situation with three intervals:</p>
+<ol type="1">
+<li>I am walking.</li>
+<li>I am talking.</li>
+<li>My friend calls me.</li>
+</ol>
+<p>and assume that we know the following:</p>
+<ul>
+<li>When I am walking, I am not talking.</li>
+<li>When my friend called me, I started talking.</li>
+</ul>
+<p>we can easily compute the relations between when I was walking and when my friend called me:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ot">calc ::</span> <span class="dt">Allen</span> [<span class="dt">Relation</span>]</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>calc <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    walking <span class="ot">&lt;-</span> interval </span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    talking <span class="ot">&lt;-</span> interval </span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    friend  <span class="ot">&lt;-</span> interval</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    assumeSet walking [<span class="dt">Precedes</span>, <span class="dt">Meets</span>, <span class="dt">MetBy</span>, <span class="dt">PrecededBy</span>] talking</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    assume friend <span class="dt">Starts</span> talking</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    relations <span class="ot">&lt;-</span> getConstraints walking friend</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (fromBits relations)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="fu">print</span> <span class="op">$</span> evalAllen calc</span></code></pre></div>
+<p>And this gives the result:</p>
+<pre><code>[Precedes,Meets,PrecededBy]</code></pre>
+<p>Which means that we can deduce that walking either happens before, directly
+before, or after my friend calls.</p>
+<h3 id="a-complex-example">A Complex Example</h3>
+<p>Consider the following sentence:</p>
+<p><em>John was not in the room when I touched the switch to turn on the light.</em></p>
+<p>From this sentence we can derive three intervals <strong><em>R</em></strong>, <strong><em>S</em></strong>, and <strong><em>L</em></strong> where
+<strong><em>R</em></strong> is the time that John was in the room, <strong><em>S</em></strong> is the time where the light
+switched was touched, and <strong><em>L</em></strong> the time where the light was on.</p>
+<p>From the sentence, we know at least the following:</p>
+<ul>
+<li><strong><em>S</em></strong> overlaps <em>or</em> meets *<strong>L</strong></li>
+<li><strong><em>S</em></strong> is before, meets, is met by, or is after <strong><em>R</em></strong>.</li>
+</ul>
+<p>To represent this as a reusable network, the following code can be written:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">network ::</span> <span class="dt">Allen</span> (<span class="dt">IntervalID</span>, <span class="dt">IntervalID</span>, <span class="dt">IntervalID</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>network <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    r <span class="ot">&lt;-</span> interval </span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    s <span class="ot">&lt;-</span> interval </span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    l <span class="ot">&lt;-</span> interval </span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    assumeSet s [<span class="dt">Overlaps</span>, <span class="dt">Meets</span>] l</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    assumeSet s [<span class="dt">Precedes</span>, <span class="dt">Meets</span>, <span class="dt">MetBy</span>, <span class="dt">PrecededBy</span>] r</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (r, s, l)</span></code></pre></div>
+<p>If we wanted to learn the possible relations between r and l the following code
+can be used (NOTE that <code>evalAllen</code> is used to actually evaluate the calculation):</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">relationsRL ::</span> [<span class="dt">Relation</span>]</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>relationsRL <span class="ot">=</span> evalAllen <span class="op">$</span> <span class="kw">do</span> </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Use the previously constructed network</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- `s` is discarded since it is not used</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    (r, _, l) <span class="ot">&lt;-</span> network</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- `getConstraints` returns the bitset of relations</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    fromBits <span class="op">&lt;$&gt;</span> getConstraints r l</span></code></pre></div>
+<p>Running the above code, we get the following result:</p>
+<pre><code>[Precedes,Starts,Equals,StartedBy,During,Finishes,OverlappedBy,MetBy,PrecededBy]</code></pre>
+<p>Assume that at some point we learn the following extra information:</p>
+<p><strong><em>L</em></strong> overlaps, starts, or is during <strong><em>R</em></strong>.</p>
+<p>To calculate the updated relations between <strong><em>L</em></strong> and <strong><em>R</em></strong> and between
+<strong><em>S</em></strong> and <strong><em>R</em></strong> the following code can be used.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">updatedRelations ::</span> ([<span class="dt">Relation</span>], [<span class="dt">Relation</span>])</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>updatedRelations <span class="ot">=</span> evalAllen <span class="op">$</span> <span class="kw">do</span> </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    (r, s, l) <span class="ot">&lt;-</span> network</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    assumeSet l [<span class="dt">Starts</span>, <span class="dt">Overlaps</span>, <span class="dt">During</span>] r</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    lrRelations <span class="ot">&lt;-</span> fromBits <span class="op">&lt;$&gt;</span> getConstraints l r </span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    srRelations <span class="ot">&lt;-</span> fromBits <span class="op">&lt;$&gt;</span> getConstraints s r</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (lrRelations, srRelations)</span></code></pre></div>
+<p>This would provide the result:</p>
+<pre><code>([Overlaps,Starts],[Precedes,Meets])</code></pre>
+<h2 id="documentation">Documentation</h2>
+<p>To view more information for library functions, you can view the documentation
+for this library <a href="https://archaversine.github.io/allen/Data-Allen.html">here</a>.</p>
+<h2 id="interactive-repl">Interactive REPL</h2>
+<p>You can use an interactive REPL to perform calculations from the command line.
+Executables are available for both Linux and Windows.</p>
+<p>You can download the interactive version here:</p>
+<ul>
+<li><a href="https://github.com/Archaversine/allen/releases/tag/v1.0.1-linux">Linux</a></li>
+<li><a href="https://github.com/Archaversine/allen/releases/tag/v1.0.1-windows">Windows</a></li>
+</ul>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

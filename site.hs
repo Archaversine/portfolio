@@ -52,6 +52,28 @@ main = hakyllWith config $ do
             >>= loadAndApplyTemplate "templates/default.html" (mathCtx `mappend` defaultContext)
             >>= relativizeUrls
 
+    match "projects/*" $ do 
+        route $ setExtension "html"
+        compile $ myPandocCompiler
+            >>= loadAndApplyTemplate "templates/project.html" projectCtx
+            >>= loadAndApplyTemplate "templates/default.html" (mathCtx `mappend` defaultContext)
+            >>= relativizeUrls
+
+    create ["projects.html"] $ do
+        route idRoute
+        compile $ do 
+            projects <- recentFirst =<< loadAll "projects/*"
+            let projectsCtx = 
+                    listField "projects" projectCtx (return projects) `mappend`
+                    constField "title" "Projects"                     `mappend`
+                    mathCtx                                           `mappend`
+                    defaultContext
+
+            makeItem ""
+                >>= loadAndApplyTemplate "templates/projects.html" projectsCtx
+                >>= loadAndApplyTemplate "templates/default.html"  projectsCtx
+                >>= relativizeUrls
+
     create ["archive.html"] $ do
         route idRoute
         compile $ do
@@ -93,6 +115,11 @@ main = hakyllWith config $ do
 postCtx :: Context String
 postCtx =
     dateField "date" "%B %e, %Y" `mappend`
+    defaultContext
+
+projectCtx :: Context String
+projectCtx
+    = dateField "date" "%B %e, %Y" `mappend`
     defaultContext
 
 mathCtx :: Context a
