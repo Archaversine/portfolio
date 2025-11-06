@@ -3,8 +3,6 @@ title: QIdris - A Quantum Computer Simulator in Idris
 author: Adam Brohl
 ---
 
-# QIdris
-
 A Quantum simulator built in Idris 2.
 
 ## Description 

@@ -3,8 +3,6 @@ title: Snake - A 2D N-Body Simulator
 author: Adam Brohl
 ---
 
-# Snake
-
 A configurable N-body physics simulator. 
 
 ![Binary Star Simulation](https://raw.githubusercontent.com/Archaversine/snake/main/binary.png)
