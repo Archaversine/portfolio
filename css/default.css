@@ -102,6 +102,12 @@ td, th {
     padding: 5px;
 }
 
+img.haskell-logo {
+    padding: 20px;
+    border-radius: 32px;
+    background-color: #f4f8fc;
+}
+
 @media (max-width: 319px) {
   body {
     width: 90%;
