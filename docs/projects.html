@@ -25,8 +25,108 @@
 
         <main role="main">
             <h1>Projects</h1>
-            Here you can find all my previous projects:
-<ul>
+            
+<h2>Web-based Projects</h2>
+
+    <h3>Quantum Tic-Tac-Toe</h3>
+
+    <iframe class="embed" src="https://editor.p5js.org/Archaversine/full/0f5-NXhin"></iframe>
+
+    <p>On each players turn, they can do one of three things:</p>
+
+    <ul>
+        <li><strong>Move Normally</strong>: This acts as regular tic-tac-toe, 
+            where you place your X or O on the board. (<em>Note: these aren't
+            measured moves, which mean they might move in the future! See the 
+            next item for more information.</em>)</li>
+        <li><strong>Measure</strong>: When moving normally, you will notice
+            that your symbol wiggles around a bit. This is not just for aesthetic
+            effects, this is to indicate to you that it may either tunnel or 
+            be entangled with another symbol in the future. On your turn, you
+            can choose to click one of these blue symbols (even your opponents)
+            to measure it. When a symbol is measured, it will turn red and stop
+            moving around. Once it is measured, it will never move for the
+            rest of the game. When every square is filled up, the game will
+            forcibly measure every square to determine the winner.</li>
+        <li><strong>Superposition Move</strong>: By clicking on one square and dragging 
+            to another square (with the mouse down the entire time), you can elect
+            to place your symbol into two squares at the same time. You don't 
+            actually make two moves at the same time, you indicate that your
+            symbol exists in one of the two squares. When it is measured, 
+            one of the squares will turn into your symbol in measured form, and 
+            the other will be empty. If you perform a superposition move where
+            one of the squares is a blue symbol of your opponent's type, you 
+            will create an entangled pair (denoted by the + sign). What this
+            means is that one square is an X, and the other is an O. Measuring
+            will randomly select which square is which. You can also make a 
+            superposition move on a move that is already in superposition (again
+            requiring it is on your opponent's symbol). When you do this, you will
+            create an entangled system that is also in superposition. Some X's 
+            and O's will be smaller and larger than others. These indicate the
+            probabilities that each of these squares is a particular symbol. Larger 
+            represents a higher probability.
+            </li>
+    </ul>
+
+    <strong>Miscellaneous Notes:</strong>
+
+    <p>You may notice that sometimes a blue symbol randomly changes location. 
+       This is not a bug! This was intentionally added in to add in the concept of 
+       quantum teleportation, where objects have a very low probability of "teleporting"
+       to the otherside of nearby barriers.
+    </p>
+
+    <p>This game also does not have an AI, so for maximum entertainment you will 
+       likely want to find a friend or family member to play with. However, there
+       is also a "Random Move" button which can be used to emulate an AI which
+       makes random moves.
+    </p>
+
+    <h3>Interactive Tesseract</h3>
+
+    <iframe class="embed" src="https://editor.p5js.org/Archaversine/full/MbYX7VTG-"></iframe>
+
+    <p>Visualize the fourth dimension by rotating a tesseract in all four dimensions.
+    To assist in visualization, a color gradient is introduced to show distance in the w-axis
+    where yellow is near and red is far.
+    </p>
+
+    <iframe class="embed" src="https://editor.p5js.org/Archaversine/full/aI4oGIENV"></iframe>
+
+    <p>Visualize the fifth dimension by rotating a 5d-cube in all five dimensions. </p>
+
+    <p>Controls: </p>
+
+    <ul>
+        <li><strong>Click+Drag</strong>: Rotate along the XZ and YZ planes.</li>
+        <li><strong>Shift+Click+Drag</strong>: Rotate along the XW and YW planes.</li>
+        <li><strong>Alt+Click+Drag</strong>: Rotate along the XY and ZW planes.</li>
+        <li><strong>Control+Click+Drag</strong>: Rotate along the XV and YV planes.</li>
+        <li><strong>Control+Shift+Click+Drag</strong>: Rotate along the WV and ZV planes.</li>
+    </ul>
+
+    <p>Like the tesseract, color is used to represent distance along the w-axis. In this
+    program, the thickness of the line also represents distance along the v-axis.
+    </p>
+
+    <h3>Evolving Rockets</h3>
+
+    <iframe class="embed" src="https://editor.p5js.org/Archaversine/full/0LYjiBOig"></iframe>
+
+    <p>This project is a simulation that shows how genetic algorithms can be 
+    used to create algorithms that "learn" over time. In this example, several 
+    small rockets are attempting to learn how to navigate the terrain to reach 
+    the red circle. At the beginning, they will all randomly crash in different 
+    places and not look very interesting. However, as time goes on, through the 
+    process of evolutionary computation the rockets will begin to get better and
+    better by creating new rockets that learn from the previous round what works  
+    and what doesn't work. To reset their progress, refresh the page!
+    </p>
+
+<h2>Other Projects</h2>
+
+    <p>Notable projects:</p>
+    <ul>
     
         <li>
             <a href="./projects/2024-06-06-interval-algebra.html">Allen's Interval Algebra</a> - June  6, 2024
