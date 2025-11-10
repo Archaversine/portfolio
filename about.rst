@@ -8,4 +8,4 @@ title: About
 
 Haskell developer experienced in most mainstream languages.
 
-Feel free to view my projects: https://github.com/archaversine
+GitHub: https://github.com/archaversine
