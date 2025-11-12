@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Adam Brohl - ChemLang - Algorithms as Chemical Reactions</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link rel="stylesheet" href="../css/syntax.css" />
+        <script type="text/javascript" src="//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">Adam Brohl</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../projects.html">Projects</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>ChemLang - Algorithms as Chemical Reactions</h1>
+            <article>
+    <section class="header">
+        Posted on November 11, 2025
+        
+            by Adam Brohl
+        
+    </section>
+    <section>
+        <p>After witnessing a presentation about molecular programming in my undergraduate
+studies, I thought it would be interesting to construct a programming language
+in which the only method of computation is through the use of chemical
+reactions. I have recently reconstructed this project in Haskell, and thought
+it would be worthwhile to write about how it works.</p>
+<h2 id="the-main-idea">The Main Idea</h2>
+<p>Chemicals are constantly interacting with each other all the time, and
+sometimes either create new chemicals entirely, or decompose into other
+chemicals. In Chemistry, this is typically modeled by a chemical equation. For
+example, below is the chemical equation for creating water out of hydrogen and
+oxygen:</p>
+<p><span class="math display">\[
+2H_2 + O_2 \rightarrow 2H_2O
+\]</span></p>
+<p>If we think about this mathematically, we can think of this equation as a function
+that takes in two <span class="math inline">\(H_2\)</span> molecules and one <span class="math inline">\(O_2\)</span> molecule, and returns two
+<span class="math inline">\(H_2O\)</span> molecules as a result. In other words, <span class="math inline">\(2H_2 \land O_2\)</span> implies <span class="math inline">\(2H_2O\)</span>.
+We can also store information in the amount of each chemical we have. This will
+be explored more in depth once we create actual algorithms.</p>
+<h2 id="building-the-language">Building the Language</h2>
+<p>The language, which I will call ChemLang, will have two types of statements:</p>
+<ul>
+<li><strong>Quantity Statement</strong>: Set a starting quantity of a particular chemical. For
+example, <code>H: 2</code> means we should start the program with 2 hydrogen atoms.</li>
+<li><strong>Reaction Statement</strong>: State which chemicals react with each other to create
+new chemicals. For example, the reaction statement <code>2A + B -&gt; C</code> means that
+two <span class="math inline">\(A\)</span>’s and one <span class="math inline">\(B\)</span> react together to create <span class="math inline">\(C\)</span>.</li>
+</ul>
+<h3 id="imports">Imports</h3>
+<p>To implement this, I will be using <code>mtl</code> for the state monad, <code>containers</code> for
+the <code>Map</code> type, <code>lens</code> to make some of the function definitions more
+concise, and <code>megaparsec</code> to quickly and easily build a parser for the language.
+In total, this amounts to:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Lens</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad.State</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Functor</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.List</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Maybe</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Void</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Map.Strict</span> (<span class="dt">Map</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="kw">qualified</span> <span class="dt">Data.Map.Strict</span> <span class="kw">as</span> <span class="dt">Map</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Text.Megaparsec</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Text.Megaparsec.Char</span></span></code></pre></div>
+<h3 id="types">Types</h3>
+<p>To begin implementing the language, we need to define some core types. The first
+is the <code>Reaction</code> type. I will represent each chemical as a <code>(Int, String)</code>
+tuple. The <code>Int</code> represents the amount, and the <code>String</code> represents the name.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Reaction</span> <span class="ot">=</span> <span class="dt">Reaction</span> {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    _reactants ::</span> <span class="op">!</span>[(<span class="dt">Int</span>, <span class="dt">String</span>)],</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    _products  ::</span> <span class="op">!</span>[(<span class="dt">Int</span>, <span class="dt">String</span>)]</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>makeLenses '<span class="dt">'Reaction</span></span></code></pre></div>
+<p>And we can define a custom <code>Show</code> instance:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">showChemical ::</span> (<span class="dt">Int</span>, <span class="dt">String</span>) <span class="ot">-&gt;</span> <span class="dt">String</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>showChemical (<span class="dv">1</span>, name) <span class="ot">=</span> name</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>showChemical (n, name) <span class="ot">=</span> <span class="fu">show</span> n <span class="op">++</span> name</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Show</span> <span class="dt">Reaction</span> <span class="kw">where</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">show</span> r <span class="ot">=</span> rs <span class="op">++</span> <span class="st">&quot; -&gt; &quot;</span> <span class="op">++</span> <span class="kw">if</span> r<span class="op">^.</span>products<span class="op">.</span>to <span class="fu">null</span> <span class="kw">then</span> <span class="st">&quot;null&quot;</span> <span class="kw">else</span> ps</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">where</span> rs <span class="ot">=</span> r<span class="op">^..</span>reactants<span class="op">.</span>traversed<span class="op">.</span>to showChemical <span class="op">&amp;</span> intercalate <span class="st">&quot; + &quot;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>              ps <span class="ot">=</span> r<span class="op">^..</span>products <span class="op">.</span>traversed<span class="op">.</span>to showChemical <span class="op">&amp;</span> intercalate <span class="st">&quot; + &quot;</span></span></code></pre></div>
+<p>We can ignore the <code>null</code> in the instance declaration as I will go more into
+depth later. For now, you can think of it as a a reaction that produces chemicals
+we immediately discard.</p>
+<p>Because this simulation is inherently a stateful operation, we will be using
+the <code>State</code> monad for the majority of the program. We can represent this type
+as:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Chem</span> <span class="ot">=</span> <span class="dt">State</span> <span class="dt">ChemState</span></span></code></pre></div>
+<p>Where the <code>ChemState</code> is the current state of the simulation. This type will
+keep track of the current amount of each chemical, the reactions involved in
+the program, and how many reactions have ocurred.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">ChemState</span> <span class="ot">=</span> <span class="dt">ChemState</span> {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    _agents        ::</span> <span class="op">!</span>(<span class="dt">Map</span> <span class="dt">String</span> <span class="dt">Int</span>),</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ot">    _reactions     ::</span> <span class="op">!</span>[<span class="dt">Reaction</span>],</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    _reactionCount ::</span> <span class="op">!</span><span class="dt">Int</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>} <span class="kw">deriving</span> <span class="dt">Show</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>makeLenses '<span class="dt">'ChemState</span></span></code></pre></div>
+<h3 id="building-the-parser">Building the Parser</h3>
+<p>Now that we have defined our types we can begin writing the parser for the
+language. Our parser type will be:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Parser</span> <span class="ot">=</span> <span class="dt">Parsec</span> <span class="dt">Void</span> <span class="dt">String</span></span></code></pre></div>
+<p>Lets begin with parsing a single chemical. This has two main parts: the number
+(amount) and the name of the chemical. One caveat is that if there is no number
+present, then it should be inferred to be one. A chemical name should also
+never begin with a number (but it can have numbers in the name), otherwise
+there’d be no way to tell if <code>2H</code> means 2 <span class="math inline">\(H\)</span> atoms are one chemical named
+“<span class="math inline">\(2H\)</span>”. Reactions should also only take up one line, so we will use the newline
+character to signify the end of a reaction equation. Putting this all together:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">parseNumber ::</span> <span class="dt">Parser</span> <span class="dt">Int</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>parseNumber <span class="ot">=</span> <span class="fu">read</span> <span class="op">&lt;$&gt;</span> some digitChar</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="ot">parseChemicalName ::</span> <span class="dt">Parser</span> <span class="dt">String</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>parseChemicalName <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    first <span class="ot">&lt;-</span> letterChar</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    rest  <span class="ot">&lt;-</span> many (letterChar <span class="op">&lt;|&gt;</span> digitChar) <span class="op">&lt;*</span> hspace</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (first <span class="op">:</span> rest)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="ot">parseChemical ::</span> <span class="dt">Parser</span> (<span class="dt">Int</span>, <span class="dt">String</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>parseChemical <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    n <span class="ot">&lt;-</span> optional parseNumber</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    x <span class="ot">&lt;-</span> parseChemicalName</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (fromMaybe <span class="dv">1</span> n, x)</span></code></pre></div>
+<p>With our chemical parser, we can create another parser that parses multiple
+chemicals separated by <code>+</code>, and then finally a reaction statement parser:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">parseChemicals ::</span> <span class="dt">Parser</span> [(<span class="dt">Int</span>, <span class="dt">String</span>)]</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>parseChemicals <span class="ot">=</span> parseChemical <span class="ot">`sepBy`</span> (char <span class="ch">'+'</span> <span class="op">*&gt;</span> hspace)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ot">lineEnd ::</span> <span class="dt">Parser</span> ()</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>lineEnd <span class="ot">=</span> (newline <span class="op">*&gt;</span> space) <span class="op">&lt;|&gt;</span> eof</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="ot">notNullChem ::</span> (<span class="dt">Int</span>, <span class="dt">String</span>) <span class="ot">-&gt;</span> <span class="dt">Bool</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>notNullChem (_, <span class="st">&quot;null&quot;</span>) <span class="ot">=</span> <span class="dt">False</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>notNullChem _ <span class="ot">=</span> <span class="dt">True</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="ot">parseReaction ::</span> <span class="dt">Parser</span> <span class="dt">Reaction</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>parseReaction <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    rs <span class="ot">&lt;-</span> parseChemicals</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    ps <span class="ot">&lt;-</span> string <span class="st">&quot;-&gt;&quot;</span> <span class="op">*&gt;</span> hspace <span class="op">*&gt;</span> parseChemicals <span class="op">&lt;*</span> lineEnd</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (<span class="dt">Reaction</span> rs (<span class="fu">filter</span> notNullChem ps))</span></code></pre></div>
+<p>The <code>"null"</code> chemical represents a product which we do not care about. It could
+be anything, but we are choosing not to track any information about it. Because
+of this, the reaction parser will remove any products named “null” before
+returning its result.</p>
+<p>We also need to parse quantity statements, which is relatively simple using
+our previous parsers:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ot">parseQuantity ::</span> <span class="dt">Parser</span> (<span class="dt">String</span>, <span class="dt">Int</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>parseQuantity <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    name <span class="ot">&lt;-</span> parseChemicalName</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    n    <span class="ot">&lt;-</span> char <span class="ch">':'</span> <span class="op">*&gt;</span> hspace <span class="op">*&gt;</span> parseNumber <span class="op">&lt;*</span> lineEnd</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (name, n)</span></code></pre></div>
+<p>And now finally, we can build a parser that parses an entire program. One design
+choice that I’ve made is that all quantity statements should be put at the
+beginning of the program and <em>then</em> all reaction statements should happen
+afterwards.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ot">parseProgram ::</span> <span class="dt">Parser</span> (<span class="dt">Map</span> <span class="dt">String</span> <span class="dt">Int</span>, [<span class="dt">Reaction</span>])</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>parseProgram <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    void space</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    qs <span class="ot">&lt;-</span> Map.fromList <span class="op">&lt;$&gt;</span> many (try parseQuantity)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    rs <span class="ot">&lt;-</span> some parseReaction <span class="op">&lt;*</span> eof</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> (qs, rs)</span></code></pre></div>
+<p>This parser returns a map which holds the quantity information of each specified
+chemical and a list of reactions that are to be used for the simulation.</p>
+<h3 id="building-the-interpreter">Building the Interpreter</h3>
+<p>Now we can write the interpreter which actually runs the simulation for the
+program. Because chemical reactions are relatively simple, the implementation
+turns out to be relatively simple as well. First, we need to be able to tell if
+an arbitrary reaction can product a product (i.e. there are enough reactants
+for a reaction available). We can do this by simply checking that for all reactants
+in the reaction, the quantity of each reactant in the simulation is greater than
+or equal to what is specified in the reaction:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ot">reactionPossible ::</span> <span class="dt">Reaction</span> <span class="ot">-&gt;</span> <span class="dt">Chem</span> <span class="dt">Bool</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>reactionPossible r <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    prods <span class="ot">&lt;-</span> use agents</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span> <span class="op">$</span> <span class="fu">and</span> [prods<span class="op">^.</span>agent a <span class="op">&gt;=</span> n <span class="op">|</span> (n, a) <span class="ot">&lt;-</span> r<span class="op">^.</span>reactants]</span></code></pre></div>
+<p><code>agent</code> is a helper lens I created to more easily interact with the quantity
+map. If a quantity is not specified for a chemical, it assumes 0:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ot">agent ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Lens'</span> (<span class="dt">Map</span> <span class="dt">String</span> <span class="dt">Int</span>) <span class="dt">Int</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>agent a <span class="ot">=</span> at a <span class="op">.</span> non <span class="dv">0</span> </span></code></pre></div>
+<p>Once we know that a reaction is possible, we need to actually run the logic
+for when a reaction happens. This is extremely simple, all we need to do is
+subtract the necessary number of reactants from the simulation and add the
+number of products. We also want to increment the number of reactions performed
+afterward:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ot">performReaction ::</span> <span class="dt">Reaction</span> <span class="ot">-&gt;</span> <span class="dt">Chem</span> ()</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>performReaction r <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    forM_ (r<span class="op">^.</span>reactants) <span class="op">$</span> \(n, a) <span class="ot">-&gt;</span> agents<span class="op">.</span>agent a <span class="op">-=</span> n</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    forM_ (r<span class="op">^.</span>products ) <span class="op">$</span> \(n, a) <span class="ot">-&gt;</span> agents<span class="op">.</span>agent a <span class="op">+=</span> n</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    reactionCount <span class="op">+=</span> <span class="dv">1</span></span></code></pre></div>
+<p>Now, we need to make a function that selects a reaction to perform from our
+list of actions. Here, I am choosing to select the first reaction in the list
+(ordered by how they appear in the program) every round. This obviously does
+not reflect what happens in the real world, but it has some nice properties
+that make developing algorithms easier.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Returns True if any reactions ocurred</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ot">tryPerformReaction ::</span> [<span class="dt">Reaction</span>] <span class="ot">-&gt;</span> <span class="dt">Chem</span> <span class="dt">Bool</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>tryPerformReaction [] <span class="ot">=</span> <span class="fu">return</span> <span class="dt">False</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>tryPerformReaction xs <span class="ot">=</span> filterM reactionPossible xs <span class="op">&gt;&gt;=</span> \<span class="kw">case</span> </span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    []    <span class="ot">-&gt;</span> <span class="fu">return</span> <span class="dt">False</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    (x<span class="op">:</span>_) <span class="ot">-&gt;</span> performReaction x <span class="op">$&gt;</span> <span class="dt">True</span></span></code></pre></div>
+<p>And finally, we can make a loop to repeatedly apply reactions until no more
+reactions are possible. We’ll also take in an integer <code>limit</code> to timeout after
+a certain of reactions in the event we have a program that doesn’t terminate.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ot">reactionLoop ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Chem</span> ()</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>reactionLoop limit <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    n       <span class="ot">&lt;-</span> use reactionCount</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    rs      <span class="ot">&lt;-</span> use reactions</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    reacted <span class="ot">&lt;-</span> tryPerformReaction rs</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    when (reacted <span class="op">&amp;&amp;</span> n <span class="op">&lt;</span> limit) (reactionLoop limit)</span></code></pre></div>
+<h3 id="putting-it-all-together">Putting it All Together</h3>
+<p>Now we can glue everything together and create the full interpreter. We’ll
+start by first creating a <code>runChem</code> function that takes in the quantity map
+and list of reactions and returns the resulting state:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ot">runChem ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Map</span> <span class="dt">String</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> [<span class="dt">Reaction</span>] <span class="ot">-&gt;</span> <span class="dt">ChemState</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>runChem n m rs <span class="ot">=</span> execState (reactionLoop n) (<span class="dt">ChemState</span> m rs <span class="dv">1</span>)</span></code></pre></div>
+<p>And a function to neatly print the final state:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ot">printResults ::</span> [(<span class="dt">String</span>, <span class="dt">Int</span>)] <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>printResults <span class="ot">=</span> <span class="fu">mapM_</span> <span class="op">$</span> <span class="fu">putStrLn</span> <span class="op">.</span> \(x, n) <span class="ot">-&gt;</span> x <span class="op">++</span> <span class="st">&quot;: &quot;</span> <span class="op">++</span> <span class="fu">show</span> n</span></code></pre></div>
+<p>And now we have everything we need to create the <code>main</code> function. In short,
+the <code>main</code> function needs to read text from a file, feed the text into our
+program parser, and feed the results of the parser into the <code>runChem</code> function.
+For simplicity, I’ll hardcode the file we’re reading from and the reaction
+timeout.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span> </span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> input <span class="ot">=</span> <span class="st">&quot;test.chem&quot;</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    contents <span class="ot">&lt;-</span> <span class="fu">readFile</span> input</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">case</span> parse parseProgram input contents <span class="kw">of</span> </span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Left</span> err <span class="ot">-&gt;</span> <span class="fu">putStrLn</span> (errorBundlePretty err)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Right</span> (m, rs) <span class="ot">-&gt;</span> <span class="kw">do</span> </span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>            <span class="fu">putStrLn</span> <span class="st">&quot;Running simulation...&quot;</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>            <span class="kw">let</span> result <span class="ot">=</span> runChem <span class="dv">100000</span> m rs</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>            <span class="fu">putStrLn</span> <span class="st">&quot;Done!\n\nResults:&quot;</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>            <span class="fu">putStrLn</span> <span class="st">&quot;-----&quot;</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>            printResults (result<span class="op">^.</span>agents<span class="op">.</span>to Map.toList)</span></code></pre></div>
+<p>If we supply an input <code>test.chem</code> of:</p>
+<pre><code>A: 1
+B: 2
+C: 4
+
+A + B + 2C -&gt; D
+B -&gt; E
+C -&gt; F</code></pre>
+<p>We’ll get the following output:</p>
+<pre><code>Running simulation...
+Done!
+
+Results:
+-----
+D: 1
+E: 1
+F: 2</code></pre>
+<p>Which is what we expect. To double check that everything is working correctly,
+below is the list of reactions performed in order by the interpreter:</p>
+<pre><code>(1): A + B + 2C -&gt; D
+(2): B -&gt; E
+(3): C -&gt; F
+(4): C -&gt; F</code></pre>
+<h2 id="implementing-algorithms">Implementing Algorithms</h2>
+<p>Finally, now that we have a working interpreter, we can start playing around
+with the language and see what its capable of. Way in the beginning, I stated
+that information can be encoded into the quantity of chemicals. Here, I will
+exploit that fact in the following algorithms</p>
+<h3 id="addition">Addition</h3>
+<p>Lets assume we have two numbers that we want together, say 3 and 5. In a normal
+programming language, we would simply write <code>3 + 5</code>, but here our language
+doesn’t have the concept of addition, so we have to get creative. Lets start
+our program by creating two chemicals <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span> where we set the quantity
+of each to a number we are adding.</p>
+<pre><code>A: 3
+B: 5</code></pre>
+<p>Now lets think about how a chemical reaction might help us. We’ll let <span class="math inline">\(C\)</span> be
+a chemical whose quantities represents the sum of the quantities of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>.
+If we define a reaction that takes in an <span class="math inline">\(A\)</span> and returns a <span class="math inline">\(C\)</span>, and do the same
+for <span class="math inline">\(B\)</span>, then the quantity of <span class="math inline">\(C\)</span> will be equal to the quantity of <span class="math inline">\(A\)</span> added
+to the quantity of <span class="math inline">\(B\)</span>. In code:</p>
+<pre><code>A -&gt; C
+B -&gt; C</code></pre>
+<p>If we run our interpreter, we’ll get the result:</p>
+<pre><code>C: 8</code></pre>
+<p>And if we quickly double-check: <span class="math inline">\(3 + 5\)</span> does indeed equal <span class="math inline">\(8\)</span>.</p>
+<h3 id="subtraction">Subtraction</h3>
+<p>Subtraction isn’t as easy as addition. When we were computing addiiton, we were
+taking advantage of the fact that creating more of <span class="math inline">\(C\)</span> added to what currently
+existed. Lets start with <span class="math inline">\(5 - 3\)</span> and set our quantities:</p>
+<pre><code>A: 5
+B: 3</code></pre>
+<p>If we think about what subtraction does, <span class="math inline">\(a - b\)</span> is equivalent to
+<span class="math inline">\((a - 1) - (b - 1)\)</span>. And <span class="math inline">\(a - 0 = a\)</span>. We can subtract one from both <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>
+by combining both in a reaction and throwing away the product. As a reaction:</p>
+<pre><code>A + B -&gt; null</code></pre>
+<p>And this works, if we run the simulation, we get the end result <code>A: 2</code>. But
+what happens if we switch around <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>? If we do that we end up with
+negative three, but the simulation instead returns:</p>
+<p><code>B: 2</code></p>
+<p>This ends up working nicely, if we use <span class="math inline">\(A\)</span> to represent some positive value and
+<span class="math inline">\(B\)</span> to represent some negative value, then by combining both we can get the
+result of subtracting any two numbers.</p>
+<h3 id="copying">Copying</h3>
+<p>Sometimes, we need to copy information so that the same piece of data can be
+used in different ways. In ChemLang, this becomes tricky; whenever we perform
+a reaction on a chemical, it changes value, but we don’t want the value to
+change. One thing we can try is decomposition. In Chemistry, decomposition
+is when one chemical splits into a smaller set of chemicals. Lets consider a
+chemical <span class="math inline">\(A\)</span> whose quantity we want to copy. If we decompose <span class="math inline">\(A\)</span> into two
+chemicals <span class="math inline">\(A_1\)</span> and <span class="math inline">\(A_2\)</span>, we can get two new chemicals whose quantities are
+both equal to <span class="math inline">\(A\)</span>. In code:</p>
+<pre><code>A: 5
+
+A -&gt; A1 + A2
+
+Running simulation...
+Done!
+
+Results
+-----
+A1: 5
+A2: 5</code></pre>
+<p>We can also modify the reaction statement to change how many times <span class="math inline">\(A\)</span> is copied.
+For example, if we instead want three copies, we could use the following:</p>
+<pre><code>A -&gt; A1 + A2 + A3</code></pre>
+<h3 id="comparison">Comparison</h3>
+<p>For a less trivial example, lets try answering the question: is there more of
+chemical <span class="math inline">\(A\)</span> or more of chemical <span class="math inline">\(B\)</span>? Lets start with the following values:</p>
+<pre><code>A: 3
+B: 5</code></pre>
+<p>We could simply reuse our <code>A + B -&gt; null</code> reaction from earlier and see which
+one is left over, but lets say we want to output different chemicals depending
+on the ordering of the two quantities. If there is more of <span class="math inline">\(A\)</span> than <span class="math inline">\(B\)</span>, we
+should output one <span class="math inline">\(GA\)</span>, if there is more of <span class="math inline">\(B\)</span> than <span class="math inline">\(A\)</span>, then we should
+output <span class="math inline">\(GB\)</span>, and if there is an equal amount of the two, then we should output
+<span class="math inline">\(E\)</span>.</p>
+<p>Here is a program that does just that:</p>
+<pre><code>A: 3
+B: 5
+
+E: 1
+
+A + B -&gt; null
+
+A + E -&gt; GA
+B + E -&gt; GB
+
+A -&gt; null
+B -&gt; null</code></pre>
+<p>Lets look more closely at what exactly is happening here line by line.</p>
+<p>We first start by setting our quantities. <span class="math inline">\(A\)</span> is our first input and <span class="math inline">\(B\)</span> is
+out second input. We then define the reaction <code>A + B -&gt; null</code>. From previous
+experience, we know that this will reaction will run until there is either none
+of <span class="math inline">\(A\)</span> left, none of <span class="math inline">\(B\)</span> left, or none of either left. If we end up with none
+of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>, then the program will end because no more reactions can ocurr.
+However, if there is none of <span class="math inline">\(A\)</span> but some nonzero amount of <span class="math inline">\(B\)</span> leftover after
+the null reaction, then we will trigger the reaction <code>B + E -&gt; GB</code>. Since there
+is only one <span class="math inline">\(E\)</span>, this reaction will only run once, creating <span class="math inline">\(GB\)</span> signifying
+that the quantity of <span class="math inline">\(B\)</span> is greater than the quantity of <span class="math inline">\(A\)</span>. But we might still
+have some <span class="math inline">\(B\)</span> left over, so we the proceed to the <code>B -&gt; null</code> reaction. This
+takes any remaining <span class="math inline">\(B\)</span> and discards it. The end result will be <code>GB: 1</code>. If we
+instead swap the values of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span> to make <span class="math inline">\(A\)</span> greater, then the reverse
+will happen.</p>
+<h3 id="parity-checking">Parity Checking</h3>
+<p>The last algorithm I will cover is parity checking, or checking if a number is
+even or odd. We can reuse many of the techniques from the previous algorithm.
+Given some input <span class="math inline">\(A\)</span> and return values <span class="math inline">\(E\)</span> for even and <span class="math inline">\(O\)</span> for odd, we can
+write the following:</p>
+<pre><code>A: 4
+
+E: 1
+
+2A -&gt; null
+
+A + E -&gt; O</code></pre>
+<p>Using <code>2A -&gt; null</code>, we decrease the quantity of <span class="math inline">\(A\)</span> until it is either <span class="math inline">\(1\)</span> or
+<span class="math inline">\(0\)</span>. If it is <span class="math inline">\(0\)</span>, then the program ends, but if it is <span class="math inline">\(1\)</span>, then it will react
+with <span class="math inline">\(E\)</span> to create <span class="math inline">\(O\)</span>. This works because we know that decreasing a positive
+even number by an even number (in this case 2) will always eventually reach 0
+because 0 is also an even number, whereas an odd number will end at 1, because
+odd numbers are expressed in the form <span class="math inline">\(2n + 1\)</span>.</p>
+<h2 id="final-thoughts">Final Thoughts</h2>
+<p>Overall, this is just a toy language. In the real world, reactions typically
+don’t follow an arbitrary order set by humans and must obey law of
+conservation. But, this language could be potentially extended to include
+lawfulness constraints and non deterministic reactions to serve as a helpful
+simulator for real world molecular programming.</p>
+<p>I had also wanted to prove turing completeness of the language, but I was unable
+to come up with a rigorous proof. The language exhibits qualities of turing
+complete languages, such as the ability to conditionally branch and utilize
+recursion.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site <em>proudly</em> generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,542 @@
+---
+title: ChemLang - Algorithms as Chemical Reactions
+author: Adam Brohl
+mathjax: on
+---
+
+After witnessing a presentation about molecular programming in my undergraduate
+studies, I thought it would be interesting to construct a programming language
+in which the only method of computation is through the use of chemical
+reactions. I have recently reconstructed this project in Haskell, and thought
+it would be worthwhile to write about how it works.
+
+## The Main Idea
+
+Chemicals are constantly interacting with each other all the time, and
+sometimes either create new chemicals entirely, or decompose into other
+chemicals. In Chemistry, this is typically modeled by a chemical equation. For
+example, below is the chemical equation for creating water out of hydrogen and
+oxygen:
+
+$$
+2H_2 + O_2 \rightarrow 2H_2O
+$$
+
+If we think about this mathematically, we can think of this equation as a function
+that takes in two $H_2$ molecules and one $O_2$ molecule, and returns two 
+$H_2O$ molecules as a result. In other words, $2H_2 \land O_2$ implies $2H_2O$.
+We can also store information in the amount of each chemical we have. This will
+be explored more in depth once we create actual algorithms.
+
+## Building the Language
+
+The language, which I will call ChemLang, will have two types of statements:
+
+- **Quantity Statement**: Set a starting quantity of a particular chemical. For
+  example, `H: 2` means we should start the program with 2 hydrogen atoms.
+- **Reaction Statement**: State which chemicals react with each other to create
+  new chemicals. For example, the reaction statement `2A + B -> C` means that 
+  two $A$'s and one $B$ react together to create $C$. 
+
+### Imports
+
+To implement this, I will be using `mtl` for the state monad, `containers` for 
+the `Map` type, `lens` to make some of the function definitions more
+concise, and `megaparsec` to quickly and easily build a parser for the language.
+In total, this amounts to:
+
+```haskell
+import Control.Lens
+import Control.Monad
+import Control.Monad.State
+
+import Data.Functor
+import Data.List
+import Data.Maybe
+import Data.Void
+
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+
+import Text.Megaparsec
+import Text.Megaparsec.Char
+```
+
+### Types
+
+To begin implementing the language, we need to define some core types. The first
+is the `Reaction` type. I will represent each chemical as a `(Int, String)` 
+tuple. The `Int` represents the amount, and the `String` represents the name. 
+
+```haskell
+data Reaction = Reaction {
+    _reactants :: ![(Int, String)],
+    _products  :: ![(Int, String)]
+}
+
+makeLenses ''Reaction
+```
+
+And we can define a custom `Show` instance:
+
+```haskell
+showChemical :: (Int, String) -> String
+showChemical (1, name) = name
+showChemical (n, name) = show n ++ name
+
+instance Show Reaction where
+    show r = rs ++ " -> " ++ if r^.products.to null then "null" else ps
+        where rs = r^..reactants.traversed.to showChemical & intercalate " + "
+              ps = r^..products .traversed.to showChemical & intercalate " + "
+```
+
+We can ignore the `null` in the instance declaration as I will go more into
+depth later. For now, you can think of it as a a reaction that produces chemicals
+we immediately discard.
+
+Because this simulation is inherently a stateful operation, we will be using
+the `State` monad for the majority of the program. We can represent this type
+as:
+
+```haskell
+type Chem = State ChemState
+```
+
+Where the `ChemState` is the current state of the simulation. This type will
+keep track of the current amount of each chemical, the reactions involved in
+the program, and how many reactions have ocurred.
+
+```haskell
+data ChemState = ChemState {
+    _agents        :: !(Map String Int),
+    _reactions     :: ![Reaction],
+    _reactionCount :: !Int
+} deriving Show
+
+makeLenses ''ChemState
+```
+
+### Building the Parser
+
+Now that we have defined our types we can begin writing the parser for the 
+language. Our parser type will be:
+
+```haskell
+type Parser = Parsec Void String
+```
+
+Lets begin with parsing a single chemical. This has two main parts: the number
+(amount) and the name of the chemical. One caveat is that if there is no number
+present, then it should be inferred to be one. A chemical name should also
+never begin with a number (but it can have numbers in the name), otherwise
+there'd be no way to tell if `2H` means 2 $H$ atoms are one chemical named
+"$2H$". Reactions should also only take up one line, so we will use the newline
+character to signify the end of a reaction equation. Putting this all together:
+
+```haskell
+parseNumber :: Parser Int
+parseNumber = read <$> some digitChar
+
+parseChemicalName :: Parser String
+parseChemicalName = do 
+    first <- letterChar
+    rest  <- many (letterChar <|> digitChar) <* hspace
+
+    return (first : rest)
+
+parseChemical :: Parser (Int, String)
+parseChemical = do 
+    n <- optional parseNumber
+    x <- parseChemicalName
+
+    return (fromMaybe 1 n, x)
+```
+
+With our chemical parser, we can create another parser that parses multiple
+chemicals separated by `+`, and then finally a reaction statement parser:
+
+```haskell
+parseChemicals :: Parser [(Int, String)]
+parseChemicals = parseChemical `sepBy` (char '+' *> hspace)
+
+lineEnd :: Parser ()
+lineEnd = (newline *> space) <|> eof
+
+notNullChem :: (Int, String) -> Bool
+notNullChem (_, "null") = False
+notNullChem _ = True
+
+parseReaction :: Parser Reaction
+parseReaction = do 
+    rs <- parseChemicals
+    ps <- string "->" *> hspace *> parseChemicals <* lineEnd
+
+    return (Reaction rs (filter notNullChem ps))
+```
+
+The `"null"` chemical represents a product which we do not care about. It could
+be anything, but we are choosing not to track any information about it. Because
+of this, the reaction parser will remove any products named "null" before
+returning its result.
+
+We also need to parse quantity statements, which is relatively simple using
+our previous parsers:
+
+```haskell
+parseQuantity :: Parser (String, Int)
+parseQuantity = do 
+    name <- parseChemicalName
+    n    <- char ':' *> hspace *> parseNumber <* lineEnd
+
+    return (name, n)
+```
+
+And now finally, we can build a parser that parses an entire program. One design
+choice that I've made is that all quantity statements should be put at the 
+beginning of the program and *then* all reaction statements should happen 
+afterwards.
+
+```haskell
+parseProgram :: Parser (Map String Int, [Reaction])
+parseProgram = do 
+    void space
+
+    qs <- Map.fromList <$> many (try parseQuantity)
+    rs <- some parseReaction <* eof
+
+    return (qs, rs)
+```
+
+This parser returns a map which holds the quantity information of each specified
+chemical and a list of reactions that are to be used for the simulation.
+
+### Building the Interpreter
+
+Now we can write the interpreter which actually runs the simulation for the
+program. Because chemical reactions are relatively simple, the implementation
+turns out to be relatively simple as well. First, we need to be able to tell if
+an arbitrary reaction can product a product (i.e. there are enough reactants 
+for a reaction available). We can do this by simply checking that for all reactants
+in the reaction, the quantity of each reactant in the simulation is greater than
+or equal to what is specified in the reaction:
+
+```haskell
+reactionPossible :: Reaction -> Chem Bool
+reactionPossible r = do 
+    prods <- use agents
+    return $ and [prods^.agent a >= n | (n, a) <- r^.reactants]
+```
+
+`agent` is a helper lens I created to more easily interact with the quantity 
+map. If a quantity is not specified for a chemical, it assumes 0:
+
+```haskell
+agent :: String -> Lens' (Map String Int) Int
+agent a = at a . non 0 
+```
+
+Once we know that a reaction is possible, we need to actually run the logic 
+for when a reaction happens. This is extremely simple, all we need to do is
+subtract the necessary number of reactants from the simulation and add the 
+number of products. We also want to increment the number of reactions performed
+afterward:
+
+```haskell
+performReaction :: Reaction -> Chem ()
+performReaction r = do 
+    forM_ (r^.reactants) $ \(n, a) -> agents.agent a -= n
+    forM_ (r^.products ) $ \(n, a) -> agents.agent a += n
+
+    reactionCount += 1
+```
+
+Now, we need to make a function that selects a reaction to perform from our
+list of actions. Here, I am choosing to select the first reaction in the list 
+(ordered by how they appear in the program) every round. This obviously does 
+not reflect what happens in the real world, but it has some nice properties 
+that make developing algorithms easier.
+
+```haskell
+-- | Returns True if any reactions ocurred
+tryPerformReaction :: [Reaction] -> Chem Bool
+tryPerformReaction [] = return False
+tryPerformReaction xs = filterM reactionPossible xs >>= \case 
+    []    -> return False
+    (x:_) -> performReaction x $> True
+```
+
+And finally, we can  make a loop to repeatedly apply reactions until no more
+reactions are possible. We'll also take in an integer `limit` to timeout after
+a certain of reactions in the event we have a program that doesn't terminate.
+
+```haskell 
+reactionLoop :: Int -> Chem ()
+reactionLoop limit = do 
+    n       <- use reactionCount
+    rs      <- use reactions
+    reacted <- tryPerformReaction rs
+    when (reacted && n < limit) (reactionLoop limit)
+```
+
+### Putting it All Together
+
+Now we can glue everything together and create the full interpreter. We'll 
+start by first creating a `runChem` function that takes in the quantity map
+and list of reactions and returns the resulting state:
+
+```haskell
+runChem :: Int -> Map String Int -> [Reaction] -> ChemState
+runChem n m rs = execState (reactionLoop n) (ChemState m rs 1)
+```
+
+And a function to neatly print the final state:
+
+```haskell
+printResults :: [(String, Int)] -> IO ()
+printResults = mapM_ $ putStrLn . \(x, n) -> x ++ ": " ++ show n
+```
+
+And now we have everything we need to create the `main` function. In short,
+the `main` function needs to read text from a file, feed the text into our 
+program parser, and feed the results of the parser into the `runChem` function.
+For simplicity, I'll hardcode the file we're reading from and the reaction 
+timeout.
+
+```haskell
+main :: IO ()
+main = do 
+    let input = "test.chem"
+    contents <- readFile input
+    
+    case parse parseProgram input contents of 
+        Left err -> putStrLn (errorBundlePretty err)
+        Right (m, rs) -> do 
+            putStrLn "Running simulation..."
+            let result = runChem 100000 m rs
+            putStrLn "Done!\n\nResults:"
+            putStrLn "-----"
+            printResults (result^.agents.to Map.toList)
+```
+
+If we supply an input `test.chem` of:
+
+```
+A: 1
+B: 2
+C: 4
+
+A + B + 2C -> D
+B -> E
+C -> F
+```
+
+We'll get the following output:
+
+```
+Running simulation...
+Done!
+
+Results:
+-----
+D: 1
+E: 1
+F: 2
+```
+
+Which is what we expect. To double check that everything is working correctly,
+below is the list of reactions performed in order by the interpreter:
+
+```
+(1): A + B + 2C -> D
+(2): B -> E
+(3): C -> F
+(4): C -> F
+```
+
+## Implementing Algorithms
+
+Finally, now that we have a working interpreter, we can start playing around
+with the language and see what its capable of. Way in the beginning, I stated 
+that information can be encoded into the quantity of chemicals. Here, I will 
+exploit that fact in the following algorithms
+
+### Addition
+
+Lets assume we have two numbers that we want together, say 3 and 5. In a normal
+programming language, we would simply write `3 + 5`, but here our language 
+doesn't have the concept of addition, so we have to get creative. Lets start 
+our program by creating two chemicals $A$ and $B$ where we set the quantity
+of each to a number we are adding. 
+
+```
+A: 3
+B: 5
+```
+
+Now lets think about how a chemical reaction might help us. We'll let $C$ be
+a chemical whose quantities represents the sum of the quantities of $A$ and $B$.
+If we define a reaction that takes in an $A$ and returns a $C$, and do the same
+for $B$, then the quantity of $C$ will be equal to the quantity of $A$ added
+to the quantity of $B$. In code:
+
+```
+A -> C
+B -> C
+```
+
+If we run our interpreter, we'll get the result:
+
+```
+C: 8
+```
+
+And if we quickly double-check: $3 + 5$ does indeed equal $8$.
+
+### Subtraction
+
+Subtraction isn't as easy as addition. When we were computing addiiton, we were
+taking advantage of the fact that creating more of $C$ added to what currently 
+existed. Lets start with $5 - 3$ and set our quantities:
+
+```
+A: 5
+B: 3
+```
+
+If we think about what subtraction does, $a - b$ is equivalent to
+$(a - 1) - (b - 1)$. And $a - 0 = a$. We can subtract one from both $A$ and $B$
+by combining both in a reaction and throwing away the product. As a reaction:
+
+```
+A + B -> null
+```
+
+And this works, if we run the simulation, we get the end result `A: 2`. But
+what happens if we switch around $A$ and $B$? If we do that we end up with
+negative three, but the simulation instead returns:
+
+`B: 2`
+
+This ends up working nicely, if we use $A$ to represent some positive value and
+$B$ to represent some negative value, then by combining both we can get the 
+result of subtracting any two numbers.
+
+### Copying
+
+Sometimes, we need to copy information so that the same piece of data can be 
+used in different ways. In ChemLang, this becomes tricky; whenever we perform
+a reaction on a chemical, it changes value, but we don't want the value to 
+change. One thing we can try is decomposition. In Chemistry, decomposition
+is when one chemical splits into a smaller set of chemicals. Lets consider a 
+chemical $A$ whose quantity we want to copy. If we decompose $A$ into two
+chemicals $A_1$ and $A_2$, we can get two new chemicals whose quantities are
+both equal to $A$. In code:
+
+```
+A: 5
+
+A -> A1 + A2
+
+Running simulation...
+Done!
+
+Results
+-----
+A1: 5
+A2: 5
+```
+
+We can also modify the reaction statement to change how many times $A$ is copied.
+For example, if we instead want three copies, we could use the following:
+
+```
+A -> A1 + A2 + A3
+```
+
+### Comparison
+
+For a less trivial example, lets try answering the question: is there more of 
+chemical $A$ or more of chemical $B$? Lets start with the following values:
+
+```
+A: 3
+B: 5
+```
+
+We could simply reuse our `A + B -> null` reaction from earlier and see which
+one is left over, but lets say we want to output different chemicals depending 
+on the ordering of the two quantities. If there is more of $A$ than $B$, we 
+should output one $GA$, if there is more of $B$ than $A$, then we should 
+output $GB$, and if there is an equal amount of the two, then we should output
+$E$.
+
+Here is a program that does just that:
+
+```
+A: 3
+B: 5
+
+E: 1
+
+A + B -> null
+
+A + E -> GA
+B + E -> GB
+
+A -> null
+B -> null
+```
+
+Lets look more closely at what exactly is happening here line by line.
+
+We first start by setting our quantities. $A$ is our first input and $B$ is 
+out second input. We then define the reaction `A + B -> null`. From previous
+experience, we know that this will reaction will run until there is either none 
+of $A$ left, none of $B$ left, or none of either left. If we end up with none 
+of $A$ and $B$, then the program will end because no more reactions can ocurr.
+However, if there is none of $A$ but some nonzero amount of $B$ leftover after
+the null reaction, then we will trigger the reaction `B + E -> GB`. Since there
+is only one $E$, this reaction will only run once, creating $GB$ signifying 
+that the quantity of $B$ is greater than the quantity of $A$. But we might still
+have some $B$ left over, so we the proceed to the `B -> null` reaction. This 
+takes any remaining $B$ and discards it. The end result will be `GB: 1`. If we
+instead swap the values of $A$ and $B$ to make $A$ greater, then the reverse 
+will happen.
+
+### Parity Checking
+
+The last algorithm I will cover is parity checking, or checking if a number is
+even or odd. We can reuse many of the techniques from the previous algorithm.
+Given some input $A$ and return values $E$ for even and $O$ for odd, we can
+write the following:
+
+```
+A: 4
+
+E: 1
+
+2A -> null
+
+A + E -> O
+```
+
+Using `2A -> null`, we decrease the quantity of $A$ until it is either $1$ or
+$0$. If it is $0$, then the program ends, but if it is $1$, then it will react
+with $E$ to create $O$. This works because we know that decreasing a positive
+even number by an even number (in this case 2) will always eventually reach 0
+because 0 is also an even number, whereas an odd number will end at 1, because
+odd numbers are expressed in the form $2n + 1$.
+
+## Final Thoughts
+
+Overall, this is just a toy language. In the real world, reactions typically
+don't follow an arbitrary order set by humans and must obey law of
+conservation. But, this language could be potentially extended to include
+lawfulness constraints and non deterministic reactions to serve as a helpful
+simulator for real world molecular programming.
+
+I had also wanted to prove turing completeness of the language, but I was unable
+to come up with a rigorous proof. The language exhibits qualities of turing 
+complete languages, such as the ability to conditionally branch and utilize 
+recursion.
+
